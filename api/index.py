@@ -3,73 +3,54 @@ import json
 from flask import Flask, request, jsonify, render_template
 from anthropic import Anthropic
 
-# Using absolute paths to ensure Vercel finds the templates folder correctly
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, '../templates')
 
 app = Flask(__name__, template_folder=template_dir)
 
-# Initialize Anthropic client - Make sure ANTHROPIC_API_KEY is in Vercel Settings
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 
-def fetch_news(category="World", query=""):
-    prompt = f"""
-Return exactly 6 news items in STRICT JSON format only.
+# Define categories here so they match your UI
+NEWS_CATEGORIES = ["World", "Politics", "Technology", "Business", "Science", "Health"]
 
-Category: {category}
-Query: {query}
+def fetch_news(category="World", query="", is_summary=False):
+    if is_summary:
+        prompt = f"Provide a one-sentence high-level briefing of the current state of {category} news. No markdown, just text."
+    else:
+        prompt = f"Return exactly 6 news items for {category} {query} in STRICT JSON format: [{{'title': 'string', 'summary': 'string', 'url': 'string', 'source': 'string'}}]"
 
-Format:
-[
-  {{
-    "title": "string",
-    "summary": "string",
-    "url": "string"
-  }}
-]
-"""
     try:
-        # Updated to the latest stable model as of April 2026
         response = client.messages.create(
-            model="claude-3-5-sonnet-latest", 
+            model="claude-3-5-sonnet-latest",
             max_tokens=1200,
             messages=[{"role": "user", "content": prompt}]
         )
-
         text = response.content[0].text.strip()
-
-        # Clean any markdown formatting Claude might return
-        if text.startswith("```"):
-            text = text.split("```json")[-1].split("```")[0].strip()
-
-        return json.loads(text)
-
+        
+        if is_summary:
+            return text
+            
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"): text = text[4:]
+        return json.loads(text.strip())
     except Exception as e:
-        # Prevent the app from crashing; return a helpful error object
-        return [
-            {
-                "title": "Error fetching news",
-                "summary": f"Could not retrieve news: {str(e)}",
-                "url": "#"
-            }
-        ]
+        return "Briefing unavailable." if is_summary else []
 
 @app.route("/")
 def home():
-    """Serves the main website page"""
-    return render_template("index.html")
+    # CRITICAL: We pass the categories list here to fix the TypeError
+    return render_template("index.html", categories=NEWS_CATEGORIES)
 
 @app.route("/api/news")
 def news():
-    """API endpoint for fetching news via AJAX/Fetch"""
     category = request.args.get("category", "World")
     query = request.args.get("q", "")
-    
-    articles = fetch_news(category, query)
-    return jsonify({
-        "success": True,
-        "articles": articles
-    })
+    return jsonify({"success": True, "articles": fetch_news(category, query)})
 
-# Essential for Vercel's WSGI detection
+@app.route("/api/summary")
+def summary():
+    category = request.args.get("category", "World")
+    return jsonify({"success": True, "summary": fetch_news(category, is_summary=True)})
+
 app = app
