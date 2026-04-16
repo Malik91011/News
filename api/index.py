@@ -29,7 +29,7 @@ Format:
     try:
         # Using the Sonnet 3.5 model (or your specified version)
         response = client.messages.create(
-            model="claude-3-5-sonnet-20240620", 
+            model="claude-3-5-sonnet-latest" 
             max_tokens=1200,
             messages=[{"role": "user", "content": prompt}]
         )
