@@ -275,8 +275,8 @@
 </main>
 
 <script>
-  const CATEGORIES = {{ categories | tojson }};
-  let activeCategory = "World";
+  const CATEGORIES = {{ categories | default([]) | tojson }};
+  let activeCategory = CATEGORIES.length > 0 ? CATEGORIES[0] : "World";
 
   // Build category tabs
   const nav = document.getElementById("categories");
