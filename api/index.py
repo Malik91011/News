@@ -1,80 +1,108 @@
 import os
 import json
+import feedparser
 from flask import Flask, request, jsonify, render_template
 from google import genai
-from datetime import datetime
 
 # Path setup for Vercel
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, '../templates')
-
 app = Flask(__name__, template_folder=template_dir)
 
-# Initialize Gemini Client (Ensure GEMINI_API_KEY is in Vercel Settings)
+# Initialize Gemini 3 Client
+# Make sure GEMINI_API_KEY is in Vercel Settings -> Environment Variables
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-NEWS_CATEGORIES = ["World", "Politics", "Technology", "Business", "Science", "Health"]
+# Mapping buttons to LIVE RSS Feeds for 100% accuracy
+RSS_FEEDS = {
+    "World": "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "Politics": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+    "Technology": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+    "Business": "https://feeds.bbci.co.uk/news/business/rss.xml",
+    "Science": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+    "Health": "https://feeds.bbci.co.uk/news/health/rss.xml"
+}
 
-def fetch_news(category="World", query="", is_summary=False):
-    # Anchoring the AI to today's date in 2026
-    current_date = "Thursday, April 16, 2026"
+def get_live_headlines(category):
+    """Fetches real headlines from RSS feeds."""
+    url = RSS_FEEDS.get(category, RSS_FEEDS["World"])
+    feed = feedparser.parse(url)
+    headlines = []
+    # Grab the top 8 stories
+    for entry in feed.entries[:8]:
+        headlines.append({
+            "title": entry.title,
+            "link": entry.link,
+            "published": entry.get("published", "Recently")
+        })
+    return headlines
 
-    if is_summary:
-        prompt = f"Today is {current_date}. Provide a one-sentence high-level briefing of the most recent {category} news. Use present tense. No markdown."
-    else:
-        prompt = f"""
-        Today is {current_date}. 
-        Return exactly 6 HIGHLY RECENT news items for {category} {query} in STRICT JSON format.
-        Focus on events from the last 24 hours.
-        JSON Format:
-        [
-          {{
-            "title": "Headline",
-            "summary": "1-2 sentence description",
-            "url": "https://news.google.com",
-            "source": "Source Name",
-            "category": "{category}",
-            "time": "2 hours ago"
-          }}
-        ]
-        """
+def summarize_with_ai(headlines, category):
+    """Uses Gemini 3 to create clean summaries of real news."""
+    if not headlines:
+        return []
 
+    prompt = f"""
+    I have these real-time {category} headlines: {json.dumps(headlines)}
+    
+    Task: Convert these into a clean JSON list of 6 items. 
+    Keep the original title and link. Write a 1-sentence 'summary' for each.
+    
+    JSON Format:
+    [
+      {{
+        "title": "Title Here",
+        "summary": "AI Summary Here",
+        "url": "Original Link",
+        "source": "BBC News",
+        "category": "{category}",
+        "time": "Recently"
+      }}
+    ]
+    """
+    
     try:
-        # Using Gemini 3 Flash (the 2026 Free Tier workhorse)
+        # Using Gemini 3 Flash (April 2026 Stable)
         response = client.models.generate_content(
             model="gemini-3-flash-preview",
             contents=prompt
         )
-        
         text = response.text.strip()
-        if is_summary:
-            return text
-
-        # Clean markdown if Gemini includes it
+        
+        # Clean JSON markdown blocks
         if "```" in text:
             text = text.split("```")[1].replace("json", "").strip()
         
         return json.loads(text)
-
     except Exception as e:
-        print(f"FETCH ERROR: {e}")
-        return "Briefing currently unavailable." if is_summary else []
+        print(f"AI ERROR: {e}")
+        return []
 
 @app.route("/")
 def home():
-    return render_template("index.html", categories=NEWS_CATEGORIES)
+    # Pass category keys to the template
+    return render_template("index.html", categories=list(RSS_FEEDS.keys()))
 
 @app.route("/api/news")
 def news():
-    category = request.args.get("category", "World")
-    query = request.args.get("q", "")
-    articles = fetch_news(category, query)
-    return jsonify({"success": True, "articles": articles})
+    cat = request.args.get("category", "World")
+    live_data = get_live_headlines(cat)
+    processed_news = summarize_with_ai(live_data, cat)
+    return jsonify({"success": True, "articles": processed_news})
 
 @app.route("/api/summary")
 def summary():
-    category = request.args.get("category", "World")
-    summary_text = fetch_news(category, is_summary=True)
-    return jsonify({"success": True, "summary": summary_text})
+    cat = request.args.get("category", "World")
+    live_data = get_live_headlines(cat)
+    top_story = live_data[0]['title'] if live_data else "Global Events"
+    
+    # Modern 2026 AI Briefing
+    prompt = f"Give me a one-sentence dramatic news briefing about: {top_story}. No markdown."
+    try:
+        response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
+        return jsonify({"success": True, "summary": response.text})
+    except:
+        return jsonify({"success": True, "summary": "Keeping you updated on the latest shifts."})
 
+# Export for Vercel
 app = app
