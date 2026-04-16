@@ -1,173 +1,274 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>PULSE — Real-Time News</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PULSE — Real-Time News Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root { 
+        --bg: #050505; 
+        --card-bg: rgba(255, 255, 255, 0.03); 
+        --border: rgba(255, 255, 255, 0.1); 
+        --accent: #e8c547; 
+        --text: #f0f0f0; 
+        --muted: #888; 
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; -webkit-font-smoothing: antialiased; }
 
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    header { 
+        border-bottom: 1px solid var(--border); 
+        padding: 0 2.5rem; 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between; 
+        height: 85px; 
+        position: sticky; 
+        top: 0; 
+        background: rgba(5, 5, 5, 0.85); 
+        backdrop-filter: blur(20px); 
+        z-index: 1000; 
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 900; color: var(--accent); letter-spacing: -1.5px; }
 
-<style>
-:root {
-  --bg:#0a0a0a;
-  --surface:#111;
-  --border:#222;
-  --accent:#e8c547;
-  --text:#e8e8e8;
-  --muted:#888;
-}
+    /* --- PREMIUM SEARCH BAR --- */
+    .search-container { 
+        display: flex; 
+        align-items: center; 
+        background: rgba(255,255,255,0.05); 
+        border: 1px solid var(--border); 
+        border-radius: 50px; 
+        padding: 5px 6px 5px 22px; 
+        transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); 
+    }
+    .search-container:focus-within { 
+        border-color: var(--accent); 
+        background: rgba(255,255,255,0.08);
+        box-shadow: 0 0 20px rgba(232, 197, 71, 0.15);
+    }
+    .search-container input { 
+        background: transparent; 
+        border: none; 
+        color: #fff; 
+        font-size: 0.9rem; 
+        outline: none; 
+        width: 240px; 
+        font-weight: 300;
+    }
+    .search-container button { 
+        background: var(--accent); 
+        border: none; 
+        color: #000; 
+        font-weight: 700; 
+        font-size: 0.75rem; 
+        padding: 10px 24px; 
+        cursor: pointer; 
+        border-radius: 50px; 
+        text-transform: uppercase; 
+        transition: all 0.3s ease;
+    }
+    .search-container button:hover { transform: scale(1.05); background: #fff; }
 
-body {
-  background:var(--bg);
-  color:var(--text);
-  font-family:'IBM Plex Sans';
-}
+    .categories { 
+        display: flex; 
+        padding: 0 2.5rem; 
+        border-bottom: 1px solid var(--border); 
+        overflow-x: auto; 
+        gap: 1.5rem; 
+        scrollbar-width: none; 
+        background: var(--bg);
+    }
+    .cat-btn { 
+        background: none; 
+        border: none; 
+        color: var(--muted); 
+        font-family: 'IBM Plex Mono', monospace; 
+        font-size: 0.75rem; 
+        padding: 1.5rem 0.5rem; 
+        cursor: pointer; 
+        text-transform: uppercase; 
+        border-bottom: 2px solid transparent; 
+        transition: 0.3s ease;
+        letter-spacing: 1px;
+    }
+    .cat-btn:hover { color: #fff; }
+    .cat-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-header {
-  padding:20px;
-  display:flex;
-  justify-content:space-between;
-  backdrop-filter: blur(12px);
-  background:rgba(10,10,10,0.6);
-  position:sticky;
-  top:0;
-}
+    .briefing-strip { 
+        background: #0a0a0a; 
+        border-bottom: 1px solid var(--border); 
+        padding: 0.9rem 2.5rem; 
+        font-size: 0.85rem; 
+        display: flex; 
+        align-items: center; 
+    }
+    .briefing-label { 
+        color: var(--accent); 
+        font-weight: bold; 
+        text-transform: uppercase; 
+        font-size: 0.65rem; 
+        margin-right: 1.2rem; 
+        border: 1px solid var(--accent); 
+        padding: 2px 8px; 
+        border-radius: 2px;
+        letter-spacing: 1px;
+    }
 
-.logo {
-  font-family:'Playfair Display';
-  color:var(--accent);
-  font-size:28px;
-}
-
-.search-container {
-  display:flex;
-  gap:8px;
-}
-
-.search-container input {
-  padding:6px;
-  background:#111;
-  border:1px solid #333;
-  color:white;
-}
-
-.search-container button {
-  background:var(--accent);
-  border:none;
-  padding:6px 12px;
-  cursor:pointer;
-}
-
-/* categories */
-.categories {
-  display:flex;
-  gap:10px;
-  padding:10px;
-  overflow-x:auto;
-}
-
-.cat-btn {
-  background:none;
-  border:none;
-  color:var(--muted);
-  cursor:pointer;
-}
-
-.cat-btn.active {
-  color:var(--accent);
-}
-
-/* cards */
-.grid {
-  display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(300px,1fr));
-  gap:15px;
-  padding:20px;
-}
-
-.card {
-  background:rgba(20,20,20,0.6);
-  padding:15px;
-  border:1px solid var(--border);
-  border-radius:12px;
-  transition:0.3s;
-  backdrop-filter: blur(10px);
-}
-
-.card:hover {
-  transform:scale(1.03);
-  border-color:var(--accent);
-}
-
-.card-title {
-  font-weight:bold;
-  margin-bottom:10px;
-}
-
-.card-summary {
-  color:var(--muted);
-  font-size:14px;
-}
-
-</style>
+    main { padding: 3rem 2.5rem; max-width: 1600px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 2rem; }
+    
+    /* --- PREMIUM GLASSMORPHISM CARDS --- */
+    .card { 
+        background: var(--card-bg); 
+        border: 1px solid var(--border); 
+        padding: 2.5rem; 
+        text-decoration: none; 
+        color: inherit; 
+        transition: all 0.5s cubic-bezier(0.165, 0.84, 0.44, 1); 
+        border-radius: 12px; 
+        display: flex; 
+        flex-direction: column; 
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+    .card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: -100%;
+        width: 100%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+        transition: 0.6s;
+    }
+    .card:hover::before { left: 100%; }
+    
+    .card:hover { 
+        background: rgba(255, 255, 255, 0.06); 
+        border-color: rgba(232, 197, 71, 0.4); 
+        transform: translateY(-12px) scale(1.02);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+    
+    .card-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 1.2rem; color: #fff; line-height: 1.2; }
+    .card-summary { font-size: 0.95rem; color: #aaa; line-height: 1.8; margin-bottom: 2.5rem; font-weight: 300; }
+    
+    .card-meta { 
+        margin-top: auto; 
+        font-family: 'IBM Plex Mono', monospace; 
+        font-size: 0.7rem; 
+        color: #666; 
+        display: flex; 
+        justify-content: space-between; 
+        border-top: 1px solid var(--border); 
+        padding-top: 1.5rem; 
+    }
+    
+    .pulse { 
+        height: 8px; width: 8px; background: #ff4d4d; border-radius: 50%; 
+        display: inline-block; margin-right: 6px; 
+        box-shadow: 0 0 10px #ff4d4d;
+        animation: pulse-anim 2s infinite; 
+    }
+    @keyframes pulse-anim { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+  </style>
 </head>
-
 <body>
 
 <header>
-  <div class="logo">PULSE</div>
-
+  <div class="logo">PULSE<span>.</span></div>
   <div class="search-container">
-    <input type="text" id="searchInput" placeholder="Search news...">
-    <button onclick="searchNews()">Search</button>
+    <input type="text" id="searchInput" placeholder="Search keywords in Pakistan news..." onkeypress="if(event.key==='Enter') searchNews()">
+    <button onclick="searchNews()" id="searchBtn">Search</button>
   </div>
 </header>
 
 <nav class="categories" id="catNav"></nav>
 
-<div class="grid" id="newsGrid"></div>
+<div class="briefing-strip">
+  <span class="briefing-label">Status</span>
+  <span id="briefingText" style="color: #666;">Synchronizing local and global bureaus...</span>
+</div>
+
+<main>
+  <div class="grid" id="newsGrid"></div>
+</main>
 
 <script>
-const CATEGORIES = {{ categories | tojson }};
-let activeCategory = "Pakistan";
+  const CATEGORIES = {{ categories | tojson }};
+  let activeCategory = "Pakistan";
 
-function init() {
-  const nav = document.getElementById("catNav");
+  function init() {
+    const nav = document.getElementById('catNav');
+    CATEGORIES.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = `cat-btn ${cat === activeCategory ? 'active' : ''}`;
+      btn.innerText = cat;
+      btn.onclick = () => switchCategory(cat);
+      nav.appendChild(btn);
+    });
+    loadContent();
+  }
 
-  CATEGORIES.forEach(cat => {
-    const btn = document.createElement("button");
-    btn.innerText = cat;
-    btn.className = "cat-btn";
-    btn.onclick = () => {
-      activeCategory = cat;
-      loadNews();
-    };
-    nav.appendChild(btn);
-  });
+  function switchCategory(cat) {
+    activeCategory = cat;
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.innerText === cat));
+    document.getElementById('searchInput').value = ""; // Reset search on category change
+    loadContent();
+  }
 
-  loadNews();
-}
+  async function loadContent(query = "") {
+    const grid = document.getElementById('newsGrid');
+    const briefing = document.getElementById('briefingText');
+    const searchBtn = document.getElementById('searchBtn');
+    
+    grid.style.opacity = "0.4";
+    if(query) searchBtn.innerText = "WAIT...";
+    
+    try {
+        const queryParam = query ? `&q=${encodeURIComponent(query)}` : "";
+        const nRes = await fetch(`/api/news?category=${activeCategory}${queryParam}`);
+        const nData = await nRes.json();
+        
+        if (nData.articles.length === 0) {
+            grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #555; padding-top: 5rem; font-family: 'IBM Plex Mono';">NO RESULTS MATCHING "${query}" IN ${activeCategory.toUpperCase()}.</div>`;
+        } else {
+            grid.innerHTML = nData.articles.map(a => `
+              <a href="${a.url}" class="card" target="_blank">
+                <div class="card-title">${a.title}</div>
+                <div class="card-summary">${a.summary}</div>
+                <div class="card-meta">
+                    <span>${a.source}</span>
+                    <span><span class="pulse"></span> LIVE</span>
+                </div>
+              </a>
+            `).join('');
+        }
+        
+        grid.style.opacity = "1";
+        searchBtn.innerText = "Search";
 
-async function loadNews(query="") {
-  const res = await fetch(`/api/news?category=${activeCategory}&q=${query}`);
-  const data = await res.json();
+        if (!query) {
+            await new Promise(r => setTimeout(r, 3000));
+            const sRes = await fetch(`/api/summary?category=${activeCategory}`);
+            const sData = await sRes.json();
+            briefing.innerText = sData.summary;
+        } else {
+            briefing.innerText = `Displaying search results for: "${query}"`;
+        }
+    } catch (err) { 
+        console.error(err);
+        grid.style.opacity = "1";
+        searchBtn.innerText = "Search";
+    }
+  }
 
-  const grid = document.getElementById("newsGrid");
+  function searchNews() {
+    const q = document.getElementById('searchInput').value;
+    loadContent(q);
+  }
 
-  grid.innerHTML = data.articles.map(a => `
-    <div class="card">
-      <div class="card-title">${a.title}</div>
-      <div class="card-summary">${a.summary}</div>
-    </div>
-  `).join("");
-}
-
-function searchNews() {
-  const q = document.getElementById("searchInput").value;
-  loadNews(q);
-}
-
-window.onload = init;
+  window.onload = init;
 </script>
-
 </body>
 </html>
