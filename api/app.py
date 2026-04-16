@@ -5,11 +5,21 @@ from anthropic import Anthropic
 
 app = Flask(__name__)
 
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 
 
 def fetch_news(category="World", query=""):
-    prompt = f"Return 6 news items as JSON only for {category}."
+    prompt = f"""
+Return exactly 6 news items in STRICT JSON format only.
+
+Category: {category}
+Query: {query}
+
+Format:
+[
+  {{"title": "...", "summary": "...", "url": "..."}}
+]
+"""
 
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
@@ -19,10 +29,15 @@ def fetch_news(category="World", query=""):
 
     text = response.content[0].text.strip()
 
-    if text.startswith("```"):
-        text = text.split("```")[1]
+    # remove markdown code blocks safely
+    text = text.replace("```json", "").replace("```", "").strip()
 
     return json.loads(text)
+
+
+@app.route("/")
+def home():
+    return "API running"
 
 
 @app.route("/api/news")
@@ -36,9 +51,5 @@ def news():
     })
 
 
-@app.route("/")
-def home():
-    return "API running"
-
-
+# IMPORTANT for Vercel
 app = app
