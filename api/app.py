@@ -1,6 +1,9 @@
 import os
 import json
+from flask import Flask, request, jsonify
 from anthropic import Anthropic
+
+app = Flask(__name__)
 
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
@@ -13,7 +16,7 @@ def fetch_news(category="World", query=""):
     prompt = f"""
 Return 6 news items as JSON ONLY.
 
-Each item:
+Each item must have:
 title, summary, source, category, time, url
 
 Topic: {topic}
@@ -38,23 +41,21 @@ Topic: {topic}
         return []
 
 
-# 🔥 Vercel entry point (IMPORTANT)
-def handler(request):
-    from urllib.parse import parse_qs, urlparse
+@app.route("/api/news")
+def news():
+    category = request.args.get("category", "World")
+    query = request.args.get("q", "")
 
-    path = request.get("path", "/")
+    return jsonify({
+        "success": True,
+        "articles": fetch_news(category, query)
+    })
 
-    if path == "/api/news":
-        return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({
-                "success": True,
-                "articles": fetch_news()
-            })
-        }
 
-    return {
-        "statusCode": 404,
-        "body": "Not found"
-    }
+@app.route("/")
+def home():
+    return "News API is running"
+
+
+# IMPORTANT for Vercel
+app = app
