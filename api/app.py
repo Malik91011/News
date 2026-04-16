@@ -5,6 +5,7 @@ from anthropic import Anthropic
 
 app = Flask(__name__)
 
+# Safe API key loading
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 
 
@@ -17,22 +18,37 @@ Query: {query}
 
 Format:
 [
-  {{"title": "...", "summary": "...", "url": "..."}}
+  {{
+    "title": "string",
+    "summary": "string",
+    "url": "string"
+  }}
 ]
 """
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1200,
-        messages=[{"role": "user", "content": prompt}]
-    )
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1200,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-    text = response.content[0].text.strip()
+        text = response.content[0].text.strip()
 
-    # remove markdown code blocks safely
-    text = text.replace("```json", "").replace("```", "").strip()
+        # Clean markdown safely
+        text = text.replace("```json", "").replace("```", "").strip()
 
-    return json.loads(text)
+        return json.loads(text)
+
+    except Exception as e:
+        # Never crash API on Vercel
+        return [
+            {
+                "title": "Error fetching news",
+                "summary": str(e),
+                "url": ""
+            }
+        ]
 
 
 @app.route("/")
@@ -51,5 +67,5 @@ def news():
     })
 
 
-# IMPORTANT for Vercel
+# REQUIRED for Vercel
 app = app
