@@ -1,8 +1,6 @@
 import os
 import json
 from flask import Flask, request, jsonify, render_template
-
-# THE CRITICAL CHANGE: Use this specific import path
 from google import genai
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -10,8 +8,7 @@ template_dir = os.path.join(base_dir, '../templates')
 
 app = Flask(__name__, template_folder=template_dir)
 
-# Initialize Client
-# Make sure GEMINI_API_KEY is in Vercel Settings -> Environment Variables
+# Initialize the Client
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 NEWS_CATEGORIES = ["World", "Politics", "Technology", "Business", "Science", "Health"]
@@ -23,9 +20,10 @@ def fetch_news(category="World", query="", is_summary=False):
         prompt = f"Return exactly 6 news items for {category} {query} in STRICT JSON format: [{{'title': 'string', 'summary': 'string', 'url': 'string', 'source': 'string', 'category': '{category}', 'time': 'Recently'}}]"
 
     try:
-        # Generate content using Gemini 1.5 Flash
+        # UPDATED MODEL NAME FOR 2026: 'gemini-3-flash-preview'
+        # This replaces the retired 'gemini-1.5-flash'
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-3-flash-preview",
             contents=prompt
         )
         
@@ -34,7 +32,7 @@ def fetch_news(category="World", query="", is_summary=False):
         if is_summary:
             return text
 
-        # Strip markdown if present
+        # Strip markdown markers if present
         if "```" in text:
             text = text.split("```")[1]
             if text.startswith("json"):
@@ -48,7 +46,6 @@ def fetch_news(category="World", query="", is_summary=False):
 
 @app.route("/")
 def home():
-    # Passing categories list is required by your HTML
     return render_template("index.html", categories=NEWS_CATEGORIES)
 
 @app.route("/api/news")
