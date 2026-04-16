@@ -10,7 +10,7 @@ template_dir = os.path.join(base_dir, '../templates')
 app = Flask(__name__, template_folder=template_dir)
 
 # Vercel reads this from your Project Settings -> Environment Variables
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 # CRITICAL: This list fixes the "Undefined is not JSON serializable" error
 NEWS_CATEGORIES = ["World", "Politics", "Technology", "Business", "Science", "Health"]
