@@ -1,13 +1,13 @@
 import os
 import json
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from anthropic import Anthropic
 
-app = Flask(__name__)
+# We point template_folder to '../templates' because this file is inside the /api folder
+app = Flask(__name__, template_folder='../templates')
 
-# Safe API key loading
+# Safe API key loading from Vercel Environment Variables
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-
 
 def fetch_news(category="World", query=""):
     prompt = f"""
@@ -27,21 +27,22 @@ Format:
 """
 
     try:
+        # Using the Sonnet 3.5 model (or your specified version)
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-3-5-sonnet-20240620", 
             max_tokens=1200,
             messages=[{"role": "user", "content": prompt}]
         )
 
         text = response.content[0].text.strip()
 
-        # Clean markdown safely
+        # Clean markdown wrappers if Claude includes them
         text = text.replace("```json", "").replace("```", "").strip()
 
         return json.loads(text)
 
     except Exception as e:
-        # Never crash API on Vercel
+        # Graceful error handling so the site doesn't 500
         return [
             {
                 "title": "Error fetching news",
@@ -50,14 +51,14 @@ Format:
             }
         ]
 
-
 @app.route("/")
 def home():
-    return "API running"
-
+    """Serves the main HTML page from /templates/index.html"""
+    return render_template("index.html")
 
 @app.route("/api/news")
 def news():
+    """API endpoint for your frontend to fetch news data"""
     category = request.args.get("category", "World")
     query = request.args.get("q", "")
 
@@ -66,6 +67,5 @@ def news():
         "articles": fetch_news(category, query)
     })
 
-
-# REQUIRED for Vercel
+# This is required for Vercel to pick up the app instance
 app = app
