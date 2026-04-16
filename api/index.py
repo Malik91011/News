@@ -1,16 +1,16 @@
 import os
 import json
-import google.generativeai as genai
 from flask import Flask, request, jsonify, render_template
+from genai import Client
 
+# Path setup
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, '../templates')
 
 app = Flask(__name__, template_folder=template_dir)
 
-# 1. Setup Gemini
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Initialize the new Google GenAI Client
+client = Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 NEWS_CATEGORIES = ["World", "Politics", "Technology", "Business", "Science", "Health"]
 
@@ -18,29 +18,21 @@ def fetch_news(category="World", query="", is_summary=False):
     if is_summary:
         prompt = f"Provide a one-sentence high-level briefing of the current state of {category} news. No markdown."
     else:
-        prompt = f"""
-        Return exactly 6 news items for {category} {query} in STRICT JSON format.
-        Format must be exactly like this:
-        [
-          {{
-            "title": "string",
-            "summary": "string",
-            "url": "string",
-            "source": "string",
-            "category": "{category}",
-            "time": "Recently"
-          }}
-        ]
-        """
+        prompt = f"Return exactly 6 news items for {category} {query} in STRICT JSON format: [{{'title': 'string', 'summary': 'string', 'url': 'string', 'source': 'string', 'category': '{category}', 'time': 'Recently'}}]"
 
     try:
-        response = model.generate_content(prompt)
+        # The new 2026 library syntax
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt
+        )
+        
         text = response.text.strip()
 
         if is_summary:
             return text
 
-        # Clean Gemini's markdown code blocks
+        # Cleaning logic for JSON
         if "```" in text:
             text = text.split("```")[1]
             if text.startswith("json"):
@@ -49,7 +41,7 @@ def fetch_news(category="World", query="", is_summary=False):
         return json.loads(text.strip())
 
     except Exception as e:
-        print(f"GEMINI ERROR: {e}")
+        print(f"DEBUG ERROR: {e}")
         return "Briefing unavailable." if is_summary else []
 
 @app.route("/")
@@ -60,13 +52,11 @@ def home():
 def news():
     category = request.args.get("category", "World")
     query = request.args.get("q", "")
-    articles = fetch_news(category, query)
-    return jsonify({"success": True, "articles": articles})
+    return jsonify({"success": True, "articles": fetch_news(category, query)})
 
 @app.route("/api/summary")
 def summary():
     category = request.args.get("category", "World")
-    summary_text = fetch_news(category, is_summary=True)
-    return jsonify({"success": True, "summary": summary_text})
+    return jsonify({"success": True, "summary": fetch_news(category, is_summary=True)})
 
 app = app
