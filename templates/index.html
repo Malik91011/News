@@ -1,122 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PULSE — Real-Time News</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    :root { --bg: #0a0a0a; --surface: #111; --border: #222; --accent: #e8c547; --text: #e8e8e8; --muted: #888; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-weight: 300; }
-    
-    header { border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 70px; position: sticky; top: 0; background: rgba(10,10,10,0.9); backdrop-filter: blur(10px); z-index: 100; }
-    .logo { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 900; color: var(--accent); }
-    
-    /* Search Bar Styles */
-    .search-container { display: flex; align-items: center; background: #1a1a1a; border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; }
-    .search-container input { background: transparent; border: none; color: #fff; font-size: 0.8rem; outline: none; padding: 4px; width: 180px; }
-    .search-container button { background: var(--accent); border: none; color: #000; font-weight: bold; font-size: 0.7rem; padding: 5px 12px; cursor: pointer; border-radius: 2px; }
+<meta charset="UTF-8">
+<title>PULSE — Real-Time News</title>
 
-    .categories { display: flex; padding: 0 2rem; border-bottom: 1px solid var(--border); overflow-x: auto; gap: 1rem; scrollbar-width: none; }
-    .cat-btn { background: none; border: none; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; padding: 1rem 0.5rem; cursor: pointer; text-transform: uppercase; border-bottom: 2px solid transparent; white-space: nowrap; }
-    .cat-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 
-    .briefing-strip { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1rem 2rem; font-size: 0.85rem; color: var(--muted); display: flex; gap: 1rem; align-items: center; }
-    .briefing-label { color: var(--accent); font-weight: bold; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1px; flex-shrink: 0; }
+<style>
+:root {
+  --bg:#0a0a0a;
+  --surface:#111;
+  --border:#222;
+  --accent:#e8c547;
+  --text:#e8e8e8;
+  --muted:#888;
+}
 
-    main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
-    .card { background: #141414; border: 1px solid var(--border); padding: 1.8rem; text-decoration: none; color: inherit; transition: 0.3s; display: flex; flex-direction: column; height: 100%; }
-    .card:hover { border-color: var(--accent); transform: translateY(-4px); }
-    .card-title { font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 1rem; color: #fff; line-height: 1.2; }
-    .card-summary { font-size: 0.9rem; color: var(--muted); line-height: 1.6; margin-bottom: 1.5rem; }
-    .card-meta { margin-top: auto; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: #666; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 1rem; }
-    
-    .live-dot { height: 6px; width: 6px; background-color: #ff4d4d; border-radius: 50%; display: inline-block; margin-right: 5px; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-  </style>
+body {
+  background:var(--bg);
+  color:var(--text);
+  font-family:'IBM Plex Sans';
+}
+
+header {
+  padding:20px;
+  display:flex;
+  justify-content:space-between;
+  backdrop-filter: blur(12px);
+  background:rgba(10,10,10,0.6);
+  position:sticky;
+  top:0;
+}
+
+.logo {
+  font-family:'Playfair Display';
+  color:var(--accent);
+  font-size:28px;
+}
+
+.search-container {
+  display:flex;
+  gap:8px;
+}
+
+.search-container input {
+  padding:6px;
+  background:#111;
+  border:1px solid #333;
+  color:white;
+}
+
+.search-container button {
+  background:var(--accent);
+  border:none;
+  padding:6px 12px;
+  cursor:pointer;
+}
+
+/* categories */
+.categories {
+  display:flex;
+  gap:10px;
+  padding:10px;
+  overflow-x:auto;
+}
+
+.cat-btn {
+  background:none;
+  border:none;
+  color:var(--muted);
+  cursor:pointer;
+}
+
+.cat-btn.active {
+  color:var(--accent);
+}
+
+/* cards */
+.grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(300px,1fr));
+  gap:15px;
+  padding:20px;
+}
+
+.card {
+  background:rgba(20,20,20,0.6);
+  padding:15px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  transition:0.3s;
+  backdrop-filter: blur(10px);
+}
+
+.card:hover {
+  transform:scale(1.03);
+  border-color:var(--accent);
+}
+
+.card-title {
+  font-weight:bold;
+  margin-bottom:10px;
+}
+
+.card-summary {
+  color:var(--muted);
+  font-size:14px;
+}
+
+</style>
 </head>
+
 <body>
 
 <header>
-  <div class="logo">PULSE<span>.</span></div>
+  <div class="logo">PULSE</div>
+
   <div class="search-container">
-    <input type="text" id="searchInput" placeholder="Search Pakistan news...">
-    <button onclick="searchNews()">SEARCH</button>
+    <input type="text" id="searchInput" placeholder="Search news...">
+    <button onclick="searchNews()">Search</button>
   </div>
 </header>
 
 <nav class="categories" id="catNav"></nav>
 
-<div class="briefing-strip">
-  <span class="briefing-label">Live Analysis</span>
-  <span id="briefingText">Syncing local bureaus...</span>
-</div>
-
-<main>
-  <div class="grid" id="newsGrid"></div>
-</main>
+<div class="grid" id="newsGrid"></div>
 
 <script>
-  const CATEGORIES = {{ categories | tojson }};
-  let activeCategory = "Pakistan";
+const CATEGORIES = {{ categories | tojson }};
+let activeCategory = "Pakistan";
 
-  function init() {
-    const nav = document.getElementById('catNav');
-    CATEGORIES.forEach(cat => {
-      const btn = document.createElement('button');
-      btn.className = `cat-btn ${cat === activeCategory ? 'active' : ''}`;
-      btn.innerText = cat;
-      btn.onclick = () => switchCategory(cat);
-      nav.appendChild(btn);
-    });
-    loadContent();
-  }
+function init() {
+  const nav = document.getElementById("catNav");
 
-  function switchCategory(cat) {
-    activeCategory = cat;
-    document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.innerText === cat));
-    loadContent();
-  }
+  CATEGORIES.forEach(cat => {
+    const btn = document.createElement("button");
+    btn.innerText = cat;
+    btn.className = "cat-btn";
+    btn.onclick = () => {
+      activeCategory = cat;
+      loadNews();
+    };
+    nav.appendChild(btn);
+  });
 
-  async function loadContent() {
-    const grid = document.getElementById('newsGrid');
-    const briefing = document.getElementById('briefingText');
-    
-    try {
-        const nRes = await fetch(`/api/news?category=${activeCategory}`);
-        const nData = await nRes.json();
-        
-        grid.innerHTML = nData.articles.map(a => `
-          <a href="${a.url}" class="card" target="_blank">
-            <div class="card-title">${a.title}</div>
-            <div class="card-summary">${a.summary}</div>
-            <div class="card-meta">
-              <span>${a.source}</span>
-              <span><span class="live-dot"></span> ${a.time || 'LIVE'}</span>
-            </div>
-          </a>
-        `).join('');
+  loadNews();
+}
 
-        // 4 Second staggered delay to avoid 429 Error
-        await new Promise(r => setTimeout(r, 4000));
+async function loadNews(query="") {
+  const res = await fetch(`/api/news?category=${activeCategory}&q=${query}`);
+  const data = await res.json();
 
-        const sRes = await fetch(`/api/summary?category=${activeCategory}`);
-        const sData = await sRes.json();
-        briefing.innerText = sData.summary;
-    } catch (err) { console.log("System Busy..."); }
-  }
+  const grid = document.getElementById("newsGrid");
 
-  function searchNews() {
-    const q = document.getElementById('searchInput').value;
-    if(q) {
-        // Use Gemini to simulate a search on the current category
-        loadContent(); 
-    }
-  }
+  grid.innerHTML = data.articles.map(a => `
+    <div class="card">
+      <div class="card-title">${a.title}</div>
+      <div class="card-summary">${a.summary}</div>
+    </div>
+  `).join("");
+}
 
-  window.onload = init;
+function searchNews() {
+  const q = document.getElementById("searchInput").value;
+  loadNews(q);
+}
+
+window.onload = init;
 </script>
+
 </body>
 </html>
