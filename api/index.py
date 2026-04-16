@@ -37,25 +37,33 @@ def summarize_with_ai(headlines, category):
     if not headlines:
         return []
 
-    prompt = f"Summarize these real headlines for {category} into a JSON list: {json.dumps(headlines)}"
+    # FALLBACK: Create default news items in case AI is busy
+    fallback_news = []
+    for h in headlines[:6]:
+        fallback_news.append({
+            "title": h['title'],
+            "summary": "Live update: Tap to read the full report from the source.",
+            "url": h['link'],
+            "source": "BBC News",
+            "category": category,
+            "time": "Just Now"
+        })
+
+    prompt = f"Summarize these headlines into a JSON list: {json.dumps(headlines)}"
     
-    # Retry logic for 429 Too Many Requests
-    for attempt in range(3):
-        try:
-            response = client.models.generate_content(
-                model="gemini-3-flash-preview",
-                contents=prompt
-            )
-            text = response.text.strip()
-            if "```" in text:
-                text = text.split("```")[1].replace("json", "").strip()
-            return json.loads(text)
-        except Exception as e:
-            if "429" in str(e):
-                time.sleep(2) # Wait and try again
-                continue
-            return []
-    return []
+    try:
+        # Try once. If it fails, we fall back immediately to avoid 429 loops
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=prompt
+        )
+        text = response.text.strip()
+        if "```" in text:
+            text = text.split("```")[1].replace("json", "").strip()
+        return json.loads(text)
+    except Exception as e:
+        print(f"Gemini Busy. Serving Fallback News.")
+        return fallback_news
 
 @app.route("/")
 def home():
@@ -72,13 +80,14 @@ def news():
 def summary():
     cat = request.args.get("category", "World")
     live_data = get_live_headlines(cat)
-    top_story = live_data[0]['title'] if live_data else "Global News"
+    top_story = live_data[0]['title'] if live_data else "Global Events"
     
-    prompt = f"Give me a one-sentence dramatic briefing about: {top_story}. No markdown."
     try:
+        # We use a very short prompt for the summary to save tokens/quota
+        prompt = f"1-sentence news flash: {top_story}. No markdown."
         response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
         return jsonify({"success": True, "summary": response.text})
     except:
-        return jsonify({"success": True, "summary": "Intelligence systems are currently busy. Refreshing..."})
+        return jsonify({"success": False, "summary": "Intelligence systems busy. Fetching real-time feed..."})
 
 app = app
