@@ -7,38 +7,22 @@ app = Flask(__name__)
 
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-CATEGORIES = ["World", "Technology", "Business", "Science", "Health", "Sports", "Politics"]
-
 
 def fetch_news(category="World", query=""):
-    topic = query if query else f"latest {category} news"
+    prompt = f"Return 6 news items as JSON only for {category}."
 
-    prompt = f"""
-Return 6 news items as JSON ONLY.
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1200,
+        messages=[{"role": "user", "content": prompt}]
+    )
 
-Each item must have:
-title, summary, source, category, time, url
+    text = response.content[0].text.strip()
 
-Topic: {topic}
-"""
+    if text.startswith("```"):
+        text = text.split("```")[1]
 
-    try:
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1200,
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        text = response.content[0].text.strip()
-
-        if text.startswith("```"):
-            text = text.split("```")[1]
-
-        return json.loads(text)[:6]
-
-    except Exception as e:
-        print("ERROR:", e)
-        return []
+    return json.loads(text)
 
 
 @app.route("/api/news")
@@ -54,8 +38,7 @@ def news():
 
 @app.route("/")
 def home():
-    return "News API is running"
+    return "API running"
 
 
-# IMPORTANT for Vercel
 app = app
