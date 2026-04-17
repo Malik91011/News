@@ -108,9 +108,9 @@
         <div class="logo">PULSE<span>.</span> RISK MAP</div>
         <button class="cat-btn" onclick="closeMap()" style="color: #fff;">[ ESC ] CLOSE</button>
     </div>
-    <div class="map-container" id="injectedMap">
-        <div id="mapTooltip" class="map-tooltip"></div>
-        </div>
+    <div class="map-container" id="injectedMap" data-url="{{ url_for('static', filename='world.svg') }}">
+    <div id="mapTooltip" class="map-tooltip"></div>
+</div>
 </div>
 
 <div class="share-overlay" id="shareOverlay">
@@ -176,7 +176,9 @@
 
     // Fetch and inject SVG directly (Avoids Object/CORS issues)
     if (!container.querySelector('svg')) {
-        const svgRes = await fetch('static/world.svg');
+        const mapContainer = document.getElementById('injectedMap');
+const mapUrl = mapContainer.getAttribute('data-url');
+const svgRes = await fetch(mapUrl);
         const svgText = await svgRes.text();
         container.insertAdjacentHTML('beforeend', svgText);
     }
