@@ -2,7 +2,6 @@ import os
 import json
 import feedparser
 import time
-from datetime import datetime
 from flask import Flask, request, jsonify, render_template
 from google import genai
 
@@ -25,10 +24,8 @@ RSS_FEEDS = {
 
 def get_live_headlines(category, query=None):
     url = RSS_FEEDS.get(category, RSS_FEEDS["World"])
-    # Parse the feed fresh every time this function is called
     feed = feedparser.parse(url)
     
-    # Sort entries by date (newest first)
     entries = sorted(
         feed.entries, 
         key=lambda x: x.get('published_parsed', time.gmtime(0)), 
@@ -40,7 +37,7 @@ def get_live_headlines(category, query=None):
         entries = [e for e in entries if query in e.title.lower() or query in getattr(e, 'summary', '').lower()]
 
     headlines = []
-    for entry in entries[:12]: # Fetching top 12 for better variety
+    for entry in entries[:12]:
         headlines.append({
             "title": entry.title,
             "link": entry.link,
@@ -53,7 +50,6 @@ def summarize_with_ai(headlines, category):
     
     source_name = "ARY News" if category == "ARY News" else "Dawn News" if category in ["Pakistan", "Politics", "Business"] else "Global Bureau"
     
-    # Pre-formatted fallback
     fallback_news = [{
         "title": h['title'],
         "summary": f"Latest breaking coverage from {source_name}. Reported on {h['published']}.",
@@ -63,25 +59,24 @@ def summarize_with_ai(headlines, category):
         "time": h['published']
     } for h in headlines[:8]]
 
-    # Improved prompt to ensure Gemini actually processes the news
     prompt = (
-        f"You are a professional news editor. Analyze these headlines from {source_name}: {json.dumps(headlines)}. "
+        f"Analyze these news headlines from {source_name}: {json.dumps(headlines)}. "
         "Create a short, engaging 1-sentence summary for each. "
-        "Return ONLY a JSON list of objects with these keys: title, summary, url, source, category, time."
+        "Return ONLY a JSON list of objects with these keys: title, summary, url, source, category, time. "
+        "Do not include any markdown formatting or backticks."
     )
     
     try:
         response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
         text = response.text.strip()
         
-        # Clean potential markdown backticks from AI response
+        # Clean potential markdown backticks/json tags
         if "```" in text:
             text = text.split("```")[1].replace("json", "").strip()
         
-        ai_data = json.loads(text)
-        return ai_data
+        return json.loads(text)
     except Exception as e:
-        print(f"AI Error: {e}") # Log error for debugging
+        print(f"AI Processing Error: {e}")
         return fallback_news
 
 @app.route("/")
@@ -101,13 +96,11 @@ def summary():
     cat = request.args.get("category", "Pakistan")
     live_data = get_live_headlines(cat)
     if not live_data:
-        return jsonify({"success": False, "summary": "System online. Waiting for bureau data..."})
+        return jsonify({"success": False, "summary": "Intelligence feed synchronized..."})
     
     top_story = live_data[0]['title']
-    
     try:
-        # High impact one-liner prompt
-        prompt = f"Write a hard-hitting, one-sentence news flash about: {top_story}. No hashtags, no markdown."
+        prompt = f"Write a hard-hitting, one-sentence news flash about: {top_story}. No hashtags."
         response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
         return jsonify({"success": True, "summary": response.text.strip()})
     except:
