@@ -108,7 +108,7 @@
     </div>
     <div class="map-container">
         <div id="mapTooltip" class="map-tooltip"></div>
-        <object id="worldSvg" type="image/svg+xml" data="https://raw.githubusercontent.com/simplemaps/world-map-svg/master/world.svg" style="width: 100%; height: 100%;"></object>
+        <object id="worldSvg" type="image/svg+xml" data="world.svg" style="width: 100%; height: 100%;"></object>
     </div>
 </div>
 
@@ -154,7 +154,6 @@
       nav.appendChild(btn);
     });
     
-    // Add Map Button next to Business
     const mapBtn = document.createElement('button');
     mapBtn.className = 'cat-btn';
     mapBtn.style.color = 'var(--accent)';
@@ -170,33 +169,50 @@
     const res = await fetch('/api/news?category=World');
     const data = await res.json();
     const svgObj = document.getElementById('worldSvg');
-    const svgDoc = svgObj.contentDocument;
-    const tooltip = document.getElementById('mapTooltip');
 
-    svgDoc.querySelectorAll('path').forEach(path => {
-        const country = path.getAttribute('name') || "";
-        let risk = "LOW";
-        let color = "#1a1a1a";
+    // NEW: Wait for the local SVG file to load before accessing its internal document
+    svgObj.onload = function() {
+        const svgDoc = svgObj.contentDocument;
+        if (!svgDoc) return;
 
-        data.articles.forEach(art => {
-            const text = (art.title + art.summary).toLowerCase();
-            if (text.includes(country.toLowerCase())) {
-                if (text.match(/war|critical|dead|attack|crisis/)) { risk = "CRITICAL"; color = "#ff4d4d"; }
-                else if (text.match(/protest|high|strike|alert/)) { risk = "HIGH"; color = "#ffa500"; }
-            }
+        const tooltip = document.getElementById('mapTooltip');
+
+        svgDoc.querySelectorAll('path').forEach(path => {
+            const country = path.getAttribute('name') || "";
+            let risk = "LOW";
+            let color = "#1a1a1a";
+
+            data.articles.forEach(art => {
+                const text = (art.title + art.summary).toLowerCase();
+                if (text.includes(country.toLowerCase())) {
+                    if (text.match(/war|critical|dead|attack|crisis/)) { risk = "CRITICAL"; color = "#ff4d4d"; }
+                    else if (text.match(/protest|high|strike|alert/)) { risk = "HIGH"; color = "#ffa500"; }
+                }
+            });
+
+            path.style.fill = color;
+            path.style.transition = "0.3s";
+
+            path.onmouseenter = (e) => {
+                path.style.filter = "brightness(1.5)";
+                tooltip.style.display = 'block';
+                tooltip.innerHTML = `LOCATION: ${country.toUpperCase()}<br>RISK LEVEL: <span style="color:${color === '#1a1a1a' ? '#fff' : color}">${risk}</span>`;
+            };
+            path.onmousemove = (e) => { 
+                tooltip.style.left = (e.clientX + 15) + 'px'; 
+                tooltip.style.top = (e.clientY + 15) + 'px'; 
+            };
+            path.onmouseleave = () => { 
+                path.style.filter = ""; 
+                tooltip.style.display = 'none'; 
+            };
         });
+    };
 
-        path.style.fill = color;
-        path.style.transition = "0.3s";
-
-        path.onmouseenter = (e) => {
-            path.style.filter = "brightness(1.5)";
-            tooltip.style.display = 'block';
-            tooltip.innerHTML = `LOCATION: ${country.toUpperCase()}<br>RISK LEVEL: <span style="color:${color === '#1a1a1a' ? '#fff' : color}">${risk}</span>`;
-        };
-        path.onmousemove = (e) => { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; };
-        path.onmouseleave = () => { path.style.filter = ""; tooltip.style.display = 'none'; };
-    });
+    // Trigger onload manually if the object finished loading before the script ran
+    if (svgObj.contentDocument && svgObj.contentDocument.readyState === 'complete') {
+        svgObj.onload();
+    }
   }
 
   function closeMap() { document.getElementById('mapOverlay').style.display = 'none'; }
