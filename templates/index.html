@@ -177,7 +177,7 @@
     // Fetch and inject SVG directly (Avoids Object/CORS issues)
     if (!container.querySelector('svg')) {
         const mapContainer = document.getElementById('injectedMap');
-const mapUrl = mapContainer.getAttribute('data-url');
+const mapUrl = "https://raw.githubusercontent.com/simplemaps/world-map-svg/master/world.svg";
 const svgRes = await fetch(mapUrl);
         const svgText = await svgRes.text();
         container.insertAdjacentHTML('beforeend', svgText);
