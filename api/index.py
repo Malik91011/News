@@ -4,6 +4,7 @@ import feedparser
 import time
 from flask import Flask, request, jsonify, render_template
 from google import genai
+from google.genai import types # Added for configuration
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, '../templates')
@@ -63,21 +64,24 @@ def summarize_with_ai(headlines, category):
         f"Analyze these news headlines from {source_name}: {json.dumps(headlines)}. "
         "Create a short, engaging 1-sentence summary for each. "
         "Return ONLY a JSON list of objects with these keys: title, summary, url, source, category, time. "
-        "Do not include any markdown formatting or backticks."
+        "Strictly no markdown tags or code blocks."
     )
     
     try:
-        # UPDATED TO GEMINI 3 FLASH
-        response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
+        # UPDATED: Using the definitive 2026 Model ID
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview", 
+            contents=prompt
+        )
         text = response.text.strip()
         
-        # Robust JSON cleaning
+        # Robust cleaning for Gemini 3 JSON output
         if "```" in text:
             text = text.split("```")[1].replace("json", "").strip()
         
         return json.loads(text)
     except Exception as e:
-        print(f"AI Processing Error: {e}")
+        print(f"Grid Summary Error: {e}")
         return fallback_news
 
 @app.route("/")
@@ -101,12 +105,16 @@ def summary():
     
     top_story = live_data[0]['title']
     try:
-        prompt = f"Write a hard-hitting, one-sentence news flash about: {top_story}. No hashtags."
-        # UPDATED TO GEMINI 3 FLASH
-        response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
+        # UPDATED: Enhanced Prompt and Model ID
+        prompt = f"Provide a single, authoritative news flash for: {top_story}. Maximum 15 words. No hashtags."
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview", 
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=1.0) # Optimized for 2026 reasoning
+        )
         return jsonify({"success": True, "summary": response.text.strip()})
     except Exception as e:
-        print(f"Summary Error: {e}")
+        print(f"Briefing Error: {e}")
         return jsonify({"success": False, "summary": f"LIVE: {top_story}"})
 
 if __name__ == "__main__":
