@@ -2,6 +2,7 @@ import os
 import json
 import feedparser
 import time
+from datetime import datetime
 from flask import Flask, request, jsonify, render_template
 from google import genai
 
@@ -9,63 +10,78 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, '../templates')
 app = Flask(__name__, template_folder=template_dir)
 
-# Initialize Gemini 3 Client
+# Initialize Gemini Client
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# Pakistani and Global Sources
+# Updated Reliable RSS Feeds for 2026
 RSS_FEEDS = {
     "Pakistan": "https://www.dawn.com/feeds/home",
     "ARY News": "https://arynews.tv/feed/",
-    "World": "https://feeds.bbci.co.uk/news/world/rss.xml",
-    "Politics": "https://www.dawn.com/feeds/pakistan",
+    "World": "https://www.aljazeera.com/xml/rss/all.xml",
+    "Politics": "https://tribune.com.pk/feed/pakistan",
     "Technology": "https://feeds.bbci.co.uk/news/technology/rss.xml",
     "Business": "https://www.dawn.com/feeds/business"
 }
 
 def get_live_headlines(category, query=None):
     url = RSS_FEEDS.get(category, RSS_FEEDS["World"])
+    # Parse the feed fresh every time this function is called
     feed = feedparser.parse(url)
-    headlines = []
     
-    entries = feed.entries
-    # --- SEARCH LOGIC INTEGRITY ---
+    # Sort entries by date (newest first)
+    entries = sorted(
+        feed.entries, 
+        key=lambda x: x.get('published_parsed', time.gmtime(0)), 
+        reverse=True
+    )
+
     if query:
         query = query.lower()
-        # Filters locally first to save API tokens and increase speed
         entries = [e for e in entries if query in e.title.lower() or query in getattr(e, 'summary', '').lower()]
 
-    for entry in entries[:10]:
+    headlines = []
+    for entry in entries[:12]: # Fetching top 12 for better variety
         headlines.append({
             "title": entry.title,
             "link": entry.link,
-            "published": entry.get("published", "Recently")
+            "published": entry.get("published", "Just Now")
         })
     return headlines
 
 def summarize_with_ai(headlines, category):
     if not headlines: return []
     
-    source_name = "ARY News" if category == "ARY News" else "Dawn News" if category in ["Pakistan", "Politics", "Business"] else "BBC News"
+    source_name = "ARY News" if category == "ARY News" else "Dawn News" if category in ["Pakistan", "Politics", "Business"] else "Global Bureau"
     
-    # Robust Fallback in case of Rate Limits (429)
+    # Pre-formatted fallback
     fallback_news = [{
         "title": h['title'],
-        "summary": f"Live update from {source_name}. Tap to read full coverage on the official bureau website.",
+        "summary": f"Latest breaking coverage from {source_name}. Reported on {h['published']}.",
         "url": h['link'],
         "source": source_name,
         "category": category,
-        "time": "Just Now"
-    } for h in headlines[:6]]
+        "time": h['published']
+    } for h in headlines[:8]]
 
-    prompt = f"Summarize these headlines for a news dashboard in JSON format. Only output JSON: {json.dumps(headlines)}"
+    # Improved prompt to ensure Gemini actually processes the news
+    prompt = (
+        f"You are a professional news editor. Analyze these headlines from {source_name}: {json.dumps(headlines)}. "
+        "Create a short, engaging 1-sentence summary for each. "
+        "Return ONLY a JSON list of objects with these keys: title, summary, url, source, category, time."
+    )
     
     try:
-        response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
+        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
         text = response.text.strip()
+        
+        # Clean potential markdown backticks from AI response
         if "```" in text:
             text = text.split("```")[1].replace("json", "").strip()
-        return json.loads(text)
-    except:
+        
+        ai_data = json.loads(text)
+        return ai_data
+    except Exception as e:
+        print(f"AI Error: {e}") # Log error for debugging
         return fallback_news
 
 @app.route("/")
@@ -84,13 +100,18 @@ def news():
 def summary():
     cat = request.args.get("category", "Pakistan")
     live_data = get_live_headlines(cat)
-    top_story = live_data[0]['title'] if live_data else "Latest Updates"
+    if not live_data:
+        return jsonify({"success": False, "summary": "System online. Waiting for bureau data..."})
+    
+    top_story = live_data[0]['title']
     
     try:
-        prompt = f"Provide a one-sentence high-impact news briefing on: {top_story}. No markdown."
-        response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
-        return jsonify({"success": True, "summary": response.text})
+        # High impact one-liner prompt
+        prompt = f"Write a hard-hitting, one-sentence news flash about: {top_story}. No hashtags, no markdown."
+        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        return jsonify({"success": True, "summary": response.text.strip()})
     except:
-        return jsonify({"success": False, "summary": "Intelligence feed synchronized with local bureaus."})
+        return jsonify({"success": False, "summary": f"LIVE: {top_story}"})
 
-app = app
+if __name__ == "__main__":
+    app.run(debug=True)
