@@ -107,7 +107,7 @@
     <div class="map-container" id="mapBox">
         <div id="mapLoading">INITIALIZING GLOBAL SATELLITE FEED...</div>
         <div id="mapTooltip" class="map-tooltip"></div>
-        <object id="worldSvg" type="image/svg+xml" data="/static/world.svg" style="width: 100%; height: 100%; display: none;"></object>
+        <img id="worldSvg" src="/static/world.svg" style="width: 100%; height: 100%; display: none;" onload="this.style.display='block'">
     </div>
 </div>
 
