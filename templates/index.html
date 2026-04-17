@@ -70,6 +70,31 @@
     }
     .search-container button:hover { transform: scale(1.05); background: #fff; }
 
+    /* --- WORLD TIME STRIP --- */
+    .time-strip {
+        background: #000;
+        border-bottom: 1px solid var(--border);
+        padding: 10px 2.5rem;
+        display: flex;
+        gap: 2.5rem;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: none;
+    }
+    .time-strip::-webkit-scrollbar { display: none; }
+    .time-item {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.65rem;
+        color: var(--muted);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .time-item span {
+        color: var(--accent);
+        margin-left: 8px;
+        font-weight: 600;
+    }
+
     .categories { 
         display: flex; 
         padding: 0 2.5rem; 
@@ -118,7 +143,6 @@
     main { padding: 3rem 2.5rem; max-width: 1600px; margin: 0 auto; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 2rem; }
     
-    /* --- PREMIUM GLASSMORPHISM CARDS --- */
     .card { 
         background: var(--card-bg); 
         border: 1px solid var(--border); 
@@ -178,10 +202,12 @@
 <header>
   <div class="logo">PULSE<span>.</span></div>
   <div class="search-container">
-    <input type="text" id="searchInput" placeholder="Search keywords in Pakistan news..." onkeypress="if(event.key==='Enter') searchNews()">
+    <input type="text" id="searchInput" placeholder="Search keywords..." onkeypress="if(event.key==='Enter') searchNews()">
     <button onclick="searchNews()" id="searchBtn">Search</button>
   </div>
 </header>
+
+<div class="time-strip" id="timeStrip"></div>
 
 <nav class="categories" id="catNav"></nav>
 
@@ -198,7 +224,33 @@
   const CATEGORIES = {{ categories | tojson }};
   let activeCategory = "Pakistan";
 
+  function updateWorldClock() {
+    const zones = [
+        { label: 'Islamabad', zone: 'Asia/Karachi' },
+        { label: 'London', zone: 'Europe/London' },
+        { label: 'New York', zone: 'America/New_York' },
+        { label: 'Tokyo', zone: 'Asia/Tokyo' },
+        { label: 'Dubai', zone: 'Asia/Dubai' }
+    ];
+
+    const container = document.getElementById('timeStrip');
+    const now = new Date();
+
+    container.innerHTML = zones.map(z => {
+        const timeStr = now.toLocaleTimeString('en-GB', { 
+            timeZone: z.zone, 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false
+        });
+        return `<div class="time-item">${z.label}<span>${timeStr}</span></div>`;
+    }).join('');
+  }
+
   function init() {
+    updateWorldClock();
+    setInterval(updateWorldClock, 60000); // Update every minute
+
     const nav = document.getElementById('catNav');
     CATEGORIES.forEach(cat => {
       const btn = document.createElement('button');
@@ -213,7 +265,7 @@
   function switchCategory(cat) {
     activeCategory = cat;
     document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.innerText === cat));
-    document.getElementById('searchInput').value = ""; // Reset search on category change
+    document.getElementById('searchInput').value = ""; 
     loadContent();
   }
 
@@ -249,7 +301,6 @@
         searchBtn.innerText = "Search";
 
         if (!query) {
-            await new Promise(r => setTimeout(r, 3000));
             const sRes = await fetch(`/api/summary?category=${activeCategory}`);
             const sData = await sRes.json();
             briefing.innerText = sData.summary;
