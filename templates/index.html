@@ -176,7 +176,7 @@
 
     // Fetch and inject SVG directly (Avoids Object/CORS issues)
     if (!container.querySelector('svg')) {
-        const svgRes = await fetch('world.svg');
+        const svgRes = await fetch('static/world.svg');
         const svgText = await svgRes.text();
         container.insertAdjacentHTML('beforeend', svgText);
     }
