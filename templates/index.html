@@ -32,7 +32,6 @@
     .search-container input { background: transparent; border: none; color: #fff; font-size: 0.9rem; outline: none; width: 240px; font-weight: 300; }
     .search-container button { background: var(--accent); border: none; color: #000; font-weight: 700; font-size: 0.75rem; padding: 10px 24px; cursor: pointer; border-radius: 50px; text-transform: uppercase; }
 
-    /* --- TIME STRIP --- */
     .time-strip { background: #000; border-bottom: 1px solid var(--border); padding: 10px 2.5rem; display: flex; gap: 2.5rem; overflow-x: auto; scrollbar-width: none; }
     .time-item { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
     .time-item span { color: var(--accent); margin-left: 8px; font-weight: 600; }
@@ -66,15 +65,18 @@
         padding: 2rem; flex-direction: column;
     }
     .map-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
-    .map-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
-    #worldMap { width: 90%; height: auto; max-height: 75vh; }
+    .map-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: auto; }
+    
+    /* Target the injected SVG */
+    .map-container svg { width: 90%; height: auto; max-height: 75vh; }
+    .map-container path { cursor: pointer; stroke: rgba(255,255,255,0.1); stroke-width: 0.5; }
+
     .map-tooltip {
         position: fixed; background: #000; border: 1px solid var(--accent);
         padding: 12px; color: #fff; font-family: 'IBM Plex Mono', monospace;
         font-size: 0.7rem; pointer-events: none; display: none; z-index: 3001;
     }
 
-    /* --- SHARE OVERLAY --- */
     .share-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 2000; justify-content: center; align-items: center; }
     .share-menu { background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; width: 340px; text-align: center; }
     .share-opt { background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #fff; padding: 15px; font-size: 0.65rem; font-family: 'IBM Plex Mono', monospace; text-decoration: none; cursor: pointer; display: block; margin-bottom: 10px; }
@@ -106,10 +108,9 @@
         <div class="logo">PULSE<span>.</span> RISK MAP</div>
         <button class="cat-btn" onclick="closeMap()" style="color: #fff;">[ ESC ] CLOSE</button>
     </div>
-    <div class="map-container">
+    <div class="map-container" id="injectedMap">
         <div id="mapTooltip" class="map-tooltip"></div>
-        <object id="worldSvg" type="image/svg+xml" data="world.svg" style="width: 100%; height: 100%;"></object>
-    </div>
+        </div>
 </div>
 
 <div class="share-overlay" id="shareOverlay">
@@ -165,54 +166,55 @@
   }
 
   async function openGlobalMap() {
-    document.getElementById('mapOverlay').style.display = 'flex';
-    const res = await fetch('/api/news?category=World');
-    const data = await res.json();
-    const svgObj = document.getElementById('worldSvg');
+    const overlay = document.getElementById('mapOverlay');
+    const container = document.getElementById('injectedMap');
+    overlay.style.display = 'flex';
 
-    // NEW: Wait for the local SVG file to load before accessing its internal document
-    svgObj.onload = function() {
-        const svgDoc = svgObj.contentDocument;
-        if (!svgDoc) return;
+    // Fetch news data
+    const newsRes = await fetch('/api/news?category=World');
+    const newsData = await newsRes.json();
 
-        const tooltip = document.getElementById('mapTooltip');
-
-        svgDoc.querySelectorAll('path').forEach(path => {
-            const country = path.getAttribute('name') || "";
-            let risk = "LOW";
-            let color = "#1a1a1a";
-
-            data.articles.forEach(art => {
-                const text = (art.title + art.summary).toLowerCase();
-                if (text.includes(country.toLowerCase())) {
-                    if (text.match(/war|critical|dead|attack|crisis/)) { risk = "CRITICAL"; color = "#ff4d4d"; }
-                    else if (text.match(/protest|high|strike|alert/)) { risk = "HIGH"; color = "#ffa500"; }
-                }
-            });
-
-            path.style.fill = color;
-            path.style.transition = "0.3s";
-
-            path.onmouseenter = (e) => {
-                path.style.filter = "brightness(1.5)";
-                tooltip.style.display = 'block';
-                tooltip.innerHTML = `LOCATION: ${country.toUpperCase()}<br>RISK LEVEL: <span style="color:${color === '#1a1a1a' ? '#fff' : color}">${risk}</span>`;
-            };
-            path.onmousemove = (e) => { 
-                tooltip.style.left = (e.clientX + 15) + 'px'; 
-                tooltip.style.top = (e.clientY + 15) + 'px'; 
-            };
-            path.onmouseleave = () => { 
-                path.style.filter = ""; 
-                tooltip.style.display = 'none'; 
-            };
-        });
-    };
-
-    // Trigger onload manually if the object finished loading before the script ran
-    if (svgObj.contentDocument && svgObj.contentDocument.readyState === 'complete') {
-        svgObj.onload();
+    // Fetch and inject SVG directly (Avoids Object/CORS issues)
+    if (!container.querySelector('svg')) {
+        const svgRes = await fetch('world.svg');
+        const svgText = await svgRes.text();
+        container.insertAdjacentHTML('beforeend', svgText);
     }
+
+    const svg = container.querySelector('svg');
+    const tooltip = document.getElementById('mapTooltip');
+
+    svg.querySelectorAll('path').forEach(path => {
+        // Simplemaps uses 'name' or 'id' for the country
+        const country = path.getAttribute('name') || path.getAttribute('id') || "";
+        let risk = "LOW";
+        let color = "#1a1a1a";
+
+        newsData.articles.forEach(art => {
+            const text = (art.title + art.summary).toLowerCase();
+            if (country && text.includes(country.toLowerCase())) {
+                if (text.match(/war|critical|dead|attack|crisis|bomb/)) { risk = "CRITICAL"; color = "#ff4d4d"; }
+                else if (text.match(/protest|high|strike|alert|clash/)) { risk = "HIGH"; color = "#ffa500"; }
+            }
+        });
+
+        path.style.fill = color;
+        path.style.transition = "fill 0.3s, filter 0.3s";
+
+        path.onmouseenter = (e) => {
+            path.style.filter = "brightness(2.5)";
+            tooltip.style.display = 'block';
+            tooltip.innerHTML = `LOCATION: ${country.toUpperCase()}<br>RISK LEVEL: <span style="color:${color === '#1a1a1a' ? '#fff' : color}">${risk}</span>`;
+        };
+        path.onmousemove = (e) => { 
+            tooltip.style.left = (e.clientX + 15) + 'px'; 
+            tooltip.style.top = (e.clientY + 15) + 'px'; 
+        };
+        path.onmouseleave = () => { 
+            path.style.filter = ""; 
+            tooltip.style.display = 'none'; 
+        };
+    });
   }
 
   function closeMap() { document.getElementById('mapOverlay').style.display = 'none'; }
