@@ -67,10 +67,11 @@ def summarize_with_ai(headlines, category):
     )
     
     try:
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        # UPDATED TO GEMINI 3 FLASH
+        response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
         text = response.text.strip()
         
-        # Clean potential markdown backticks/json tags
+        # Robust JSON cleaning
         if "```" in text:
             text = text.split("```")[1].replace("json", "").strip()
         
@@ -101,9 +102,11 @@ def summary():
     top_story = live_data[0]['title']
     try:
         prompt = f"Write a hard-hitting, one-sentence news flash about: {top_story}. No hashtags."
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        # UPDATED TO GEMINI 3 FLASH
+        response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
         return jsonify({"success": True, "summary": response.text.strip()})
-    except:
+    except Exception as e:
+        print(f"Summary Error: {e}")
         return jsonify({"success": False, "summary": f"LIVE: {top_story}"})
 
 if __name__ == "__main__":
