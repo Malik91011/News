@@ -107,7 +107,12 @@
     <div class="map-container" id="mapBox">
         <div id="mapLoading">INITIALIZING GLOBAL SATELLITE FEED...</div>
         <div id="mapTooltip" class="map-tooltip"></div>
-        <img id="worldSvg" src="/static/world.svg" style="width: 100%; height: 100%; display: none;" onload="this.style.display='block'">
+        <object id="worldSvg" style="width: 100%; height: 100%; display: none;"></object>
+<div id="svgEmbedWrapper" style="width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;">
+    <svg id="worldMapEmbed" viewBox="0 0 1010 666" xmlns="http://www.w3.org/2000/svg" style="width: 90%; height: auto; fill: #1a1a1a; stroke: #333; stroke-width: 0.5;">
+        <path name="Pakistan" id="PK" class="country" d="[ ...This is where the massive path data goes... ]" />
+        </svg>
+</div>
     </div>
 </div>
 
