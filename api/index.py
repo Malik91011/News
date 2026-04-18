@@ -163,67 +163,159 @@ def summarize_with_ai(headlines, category):
 
 # ---------------- RISK ENGINE ----------------
 
+# Dedicated global feeds used ONLY for risk scoring (not shown as news categories)
+RISK_FEEDS = [
+    "https://feeds.bbci.co.uk/news/world/rss.xml",           # BBC World
+    "https://www.aljazeera.com/xml/rss/all.xml",             # Al Jazeera
+    "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", # NYT World
+    "https://feeds.reuters.com/reuters/worldNews",            # Reuters World
+    "https://feeds.skynews.com/feeds/rss/world.xml",         # Sky News World
+    "https://www.dawn.com/feeds/home",                       # Dawn (South Asia)
+    "https://arynews.tv/feed/",                              # ARY (Pakistan/Global)
+    "https://tribune.com.pk/feed/home",                      # Tribune
+]
+
 COUNTRY_KEYWORDS = {
-    "Pakistan": ["pakistan", "islamabad", "karachi"],
-    "India": ["india", "delhi"],
-    "United States of America": ["usa", "united states", "america"],
-    "China": ["china", "beijing"],
-    "Russia": ["russia", "moscow"],
-    "United Kingdom": ["uk", "britain", "london"],
-    "Ukraine": ["ukraine"],
-    "Iran": ["iran", "tehran"],
-    "Israel": ["israel"],
-    "France": ["france", "paris"],
-    "Germany": ["germany", "berlin"],
-    "Brazil": ["brazil"],
-    "Japan": ["japan", "tokyo"]
+    # Asia
+    "Pakistan":              ["pakistan", "islamabad", "karachi", "lahore", "peshawar"],
+    "India":                 ["india", "indian", "delhi", "mumbai", "modi", "new delhi"],
+    "China":                 ["china", "chinese", "beijing", "shanghai", "xi jinping"],
+    "Japan":                 ["japan", "japanese", "tokyo", "osaka"],
+    "South Korea":           ["south korea", "korean", "seoul"],
+    "North Korea":           ["north korea", "pyongyang", "kim jong"],
+    "Afghanistan":           ["afghanistan", "afghan", "kabul", "taliban"],
+    "Bangladesh":            ["bangladesh", "dhaka"],
+    "Myanmar":               ["myanmar", "burma", "yangon"],
+    # Middle East
+    "Iran":                  ["iran", "iranian", "tehran", "khamenei"],
+    "Israel":                ["israel", "israeli", "tel aviv", "netanyahu", "gaza", "west bank"],
+    "Saudi Arabia":          ["saudi", "saudi arabia", "riyadh", "mbs"],
+    "Turkey":                ["turkey", "turkish", "ankara", "erdogan", "türkiye"],
+    "Iraq":                  ["iraq", "iraqi", "baghdad"],
+    "Syria":                 ["syria", "syrian", "damascus"],
+    "Yemen":                 ["yemen", "yemeni", "houthi", "sanaa"],
+    "Lebanon":               ["lebanon", "lebanese", "beirut", "hezbollah"],
+    # Europe
+    "Russia":                ["russia", "russian", "moscow", "putin", "kremlin"],
+    "Ukraine":               ["ukraine", "ukrainian", "kyiv", "zelensky", "zelenskyy"],
+    "United Kingdom":        ["uk", "britain", "british", "london", "england", "scotland"],
+    "France":                ["france", "french", "paris", "macron"],
+    "Germany":               ["germany", "german", "berlin", "scholz"],
+    "Poland":                ["poland", "polish", "warsaw"],
+    "Spain":                 ["spain", "spanish", "madrid"],
+    "Italy":                 ["italy", "italian", "rome"],
+    "Serbia":                ["serbia", "serbian", "belgrade"],
+    # Americas
+    "United States":         ["united states", "usa", "american", "washington", "trump", "biden", "white house", "congress", "pentagon"],
+    "Canada":                ["canada", "canadian", "ottawa", "toronto", "trudeau"],
+    "Mexico":                ["mexico", "mexican", "mexico city"],
+    "Brazil":                ["brazil", "brazilian", "brasilia", "lula"],
+    "Argentina":             ["argentina", "argentine", "buenos aires"],
+    "Venezuela":             ["venezuela", "venezuelan", "caracas", "maduro"],
+    "Colombia":              ["colombia", "colombian", "bogota"],
+    "Cuba":                  ["cuba", "cuban", "havana"],
+    # Africa
+    "Nigeria":               ["nigeria", "nigerian", "abuja", "lagos"],
+    "South Africa":          ["south africa", "south african", "pretoria", "johannesburg"],
+    "Sudan":                 ["sudan", "sudanese", "khartoum"],
+    "Ethiopia":              ["ethiopia", "ethiopian", "addis ababa"],
+    "Somalia":               ["somalia", "somali", "mogadishu", "al-shabaab"],
+    "Libya":                 ["libya", "libyan", "tripoli"],
+    "Egypt":                 ["egypt", "egyptian", "cairo"],
+    "Kenya":                 ["kenya", "kenyan", "nairobi"],
+    "Congo":                 ["congo", "congolese", "kinshasa", "drc"],
+    # Oceania
+    "Australia":             ["australia", "australian", "canberra", "sydney"],
 }
 
 COUNTRY_COORDS = {
-    "Pakistan": [30.3753, 69.3451],
-    "India": [20.5937, 78.9629],
-    "United States of America": [37.0902, -95.7129],
-    "China": [35.8617, 104.1954],
-    "Russia": [61.5240, 105.3188],
-    "United Kingdom": [55.3781, -3.4360],
-    "Ukraine": [48.3794, 31.1656],
-    "Iran": [32.4279, 53.6880],
-    "Israel": [31.0461, 34.8516],
-    "France": [46.2276, 2.2137],
-    "Germany": [51.1657, 10.4515],
-    "Brazil": [-14.2350, -51.9253],
-    "Japan": [36.2048, 138.2529]
+    "Pakistan":              [30.3753, 69.3451],
+    "India":                 [20.5937, 78.9629],
+    "China":                 [35.8617, 104.1954],
+    "Japan":                 [36.2048, 138.2529],
+    "South Korea":           [35.9078, 127.7669],
+    "North Korea":           [40.3399, 127.5101],
+    "Afghanistan":           [33.9391, 67.7100],
+    "Bangladesh":            [23.6850, 90.3563],
+    "Myanmar":               [21.9162, 95.9560],
+    "Iran":                  [32.4279, 53.6880],
+    "Israel":                [31.0461, 34.8516],
+    "Saudi Arabia":          [23.8859, 45.0792],
+    "Turkey":                [38.9637, 35.2433],
+    "Iraq":                  [33.2232, 43.6793],
+    "Syria":                 [34.8021, 38.9968],
+    "Yemen":                 [15.5527, 48.5164],
+    "Lebanon":               [33.8547, 35.8623],
+    "Russia":                [61.5240, 105.3188],
+    "Ukraine":               [48.3794, 31.1656],
+    "United Kingdom":        [55.3781, -3.4360],
+    "France":                [46.2276, 2.2137],
+    "Germany":               [51.1657, 10.4515],
+    "Poland":                [51.9194, 19.1451],
+    "Spain":                 [40.4637, -3.7492],
+    "Italy":                 [41.8719, 12.5674],
+    "Serbia":                [44.0165, 21.0059],
+    "United States":         [37.0902, -95.7129],
+    "Canada":                [56.1304, -106.3468],
+    "Mexico":                [23.6345, -102.5528],
+    "Brazil":                [-14.2350, -51.9253],
+    "Argentina":             [-38.4161, -63.6167],
+    "Venezuela":             [6.4238, -66.5897],
+    "Colombia":              [4.5709, -74.2973],
+    "Cuba":                  [21.5218, -77.7812],
+    "Nigeria":               [9.0820, 8.6753],
+    "South Africa":          [-30.5595, 22.9375],
+    "Sudan":                 [12.8628, 30.2176],
+    "Ethiopia":              [9.1450, 40.4897],
+    "Somalia":               [5.1521, 46.1996],
+    "Libya":                 [26.3351, 17.2283],
+    "Egypt":                 [26.8206, 30.8025],
+    "Kenya":                 [-0.0236, 37.9062],
+    "Congo":                 [-4.0383, 21.7587],
+    "Australia":             [-25.2744, 133.7751],
 }
 
 NEGATIVE = [
-    "war", "attack", "bomb", "conflict", "violence",
-    "protest", "military", "strike", "killed", "explosion",
-    "crisis", "tension", "terror"
+    "war", "attack", "bomb", "conflict", "violence", "protest", "military",
+    "strike", "killed", "explosion", "crisis", "tension", "terror", "troops",
+    "missile", "shooting", "coup", "sanction", "arrested", "riot", "casualt",
+    "invasion", "airstrike", "refugee", "hostage", "nuclear", "threat", "unrest"
 ]
 
 
+def fetch_risk_headlines():
+    """Pull headlines from all dedicated global risk feeds."""
+    all_headlines = []
+    for url in RISK_FEEDS:
+        try:
+            feed = feedparser.parse(url)
+            for e in feed.entries:
+                all_headlines.append(e.title.lower())
+        except Exception:
+            continue
+    return all_headlines
+
+
 def calculate_risk():
-    all_news = []
-    for cat in RSS_FEEDS:
-        all_news.extend(get_live_headlines(cat))
+    # Use dedicated global risk feeds — much broader coverage
+    headlines = fetch_risk_headlines()
 
     scores = {c: 0 for c in COUNTRY_KEYWORDS}
 
-    for a in all_news:
-        text = a["title"].lower()
+    for text in headlines:
         for country, keys in COUNTRY_KEYWORDS.items():
             if any(k in text for k in keys):
                 scores[country] += 1
                 if any(n in text for n in NEGATIVE):
-                    scores[country] += 3
+                    scores[country] += 2   # negative event bonus
 
     result = {}
     for c, s in scores.items():
-        if s >= 12:
+        if s >= 8:
             result[c] = "critical"
-        elif s >= 6:
+        elif s >= 4:
             result[c] = "high"
-        elif s >= 2:
+        elif s >= 1:
             result[c] = "low"
         else:
             result[c] = "none"
@@ -272,9 +364,12 @@ def risk():
         risk_data = calculate_risk()
         enriched = {}
         for country, level in risk_data.items():
+            coords = COUNTRY_COORDS.get(country, [0, 0])
+            if coords == [0, 0]:
+                continue  # skip countries with no coordinates
             enriched[country] = {
                 "level": level,
-                "coords": COUNTRY_COORDS.get(country, [0, 0])
+                "coords": coords
             }
         return jsonify({"success": True, "risk": enriched})
     except Exception as e:
