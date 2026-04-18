@@ -108,16 +108,17 @@
 <div class="map-overlay" id="mapOverlay">
     <div class="map-header">
         <div class="logo">PULSE<span>.</span> RISK MAP</div>
+
         <div style="color: var(--accent); font-family: 'IBM Plex Mono'; font-size: 0.7rem; border: 1px solid var(--accent); padding: 5px 15px; border-radius: 4px; animation: pulse-anim 2s infinite;">
-            SYSTEM UNDER MAINTENANCE — LIVE DATA OFFLINE
+            LIVE GEOSPATIAL INTELLIGENCE
         </div>
+
         <button class="cat-btn" onclick="closeMap()" style="color: #fff;">[ ESC ] CLOSE</button>
     </div>
-    <div id="map"></div>
-        <div class="map-maintenance">
-            <h2 style="color: var(--accent); margin-bottom: 10px; font-family: 'Playfair Display';">MAP OFFLINE</h2>
-            <p style="font-size: 0.8rem; letter-spacing: 1px;">GEOSPATIAL RISK INTELLIGENCE IS UNDERGOING UPDATES.</p>
-        </div>
+
+    <!-- ✅ THIS IS THE ONLY MAP CONTAINER -->
+    <div class="map-container" style="flex:1;">
+        <div id="map" style="width:100%; height:100%; border-radius:12px;"></div>
     </div>
 </div>
 
