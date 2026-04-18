@@ -81,6 +81,8 @@
     .share-menu { background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; width: 340px; text-align: center; }
     .share-opt { background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #fff; padding: 15px; font-size: 0.65rem; font-family: 'IBM Plex Mono', monospace; text-decoration: none; cursor: pointer; display: block; margin-bottom: 10px; }
     .share-opt:hover { background: var(--accent); color: #000; }
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   </style>
 </head>
 <body>
@@ -111,7 +113,7 @@
         </div>
         <button class="cat-btn" onclick="closeMap()" style="color: #fff;">[ ESC ] CLOSE</button>
     </div>
-    <div class="map-container" id="injectedMap">
+    <div id="map"></div>
         <div class="map-maintenance">
             <h2 style="color: var(--accent); margin-bottom: 10px; font-family: 'Playfair Display';">MAP OFFLINE</h2>
             <p style="font-size: 0.8rem; letter-spacing: 1px;">GEOSPATIAL RISK INTELLIGENCE IS UNDERGOING UPDATES.</p>
@@ -226,6 +228,77 @@
 
   function searchNews() { loadContent(document.getElementById('searchInput').value); }
   window.onload = init;
+  let map;
+let geoLayer;
+let riskData = {};
+
+const colors = {
+    critical:"#ff4d4d",
+    high:"#e8c547",
+    low:"#4dff88",
+    none:"#444"
+};
+
+function getColor(level){
+    return colors[level] || "#444";
+}
+
+function style(feature){
+    const name = feature.properties.name;
+    return {
+        fillColor: getColor(riskData[name]),
+        color:"#111",
+        weight:1,
+        fillOpacity:0.6
+    };
+}
+
+function onEachFeature(feature, layer){
+    layer.on({
+        mouseover:()=>{
+            const name = feature.properties.name;
+            layer.bindTooltip(
+                `${name}<br>${riskData[name] || "no data"}`
+            ).openTooltip();
+        }
+    });
+}
+
+async function fetchRisk(){
+    const res = await fetch("/api/risk");
+    const data = await res.json();
+    if(data.success){
+        riskData = data.risk;
+        if(geoLayer) geoLayer.setStyle(style);
+    }
+}
+
+function initMap(){
+    if(map) return;
+
+    map = L.map('map').setView([20,0],2);
+
+    L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    ).addTo(map);
+
+    fetch("https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json")
+    .then(r=>r.json())
+    .then(data=>{
+        geoLayer = L.geoJSON(data,{
+            style,
+            onEachFeature
+        }).addTo(map);
+
+        fetchRisk();
+        setInterval(fetchRisk,30000);
+    });
+}
+
+function openGlobalMap(){
+    document.getElementById("mapOverlay").style.display="flex";
+    setTimeout(initMap,100);
+}
 </script>
 </body>
 </html>
