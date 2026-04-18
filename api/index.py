@@ -101,6 +101,23 @@ COUNTRY_KEYWORDS = {
     "Japan": ["japan", "tokyo"]
 }
 
+# Extended country coordinates for map rendering
+COUNTRY_COORDS = {
+    "Pakistan": [30.3753, 69.3451],
+    "India": [20.5937, 78.9629],
+    "United States of America": [37.0902, -95.7129],
+    "China": [35.8617, 104.1954],
+    "Russia": [61.5240, 105.3188],
+    "United Kingdom": [55.3781, -3.4360],
+    "Ukraine": [48.3794, 31.1656],
+    "Iran": [32.4279, 53.6880],
+    "Israel": [31.0461, 34.8516],
+    "France": [46.2276, 2.2137],
+    "Germany": [51.1657, 10.4515],
+    "Brazil": [-14.2350, -51.9253],
+    "Japan": [36.2048, 138.2529]
+}
+
 NEGATIVE = [
     "war", "attack", "bomb", "conflict", "violence",
     "protest", "military", "strike", "killed", "explosion",
@@ -176,7 +193,15 @@ def summary():
 @app.route("/api/risk")
 def risk():
     try:
-        return jsonify({"success": True, "risk": calculate_risk()})
+        risk_data = calculate_risk()
+        # Enrich with coordinates for the map
+        enriched = {}
+        for country, level in risk_data.items():
+            enriched[country] = {
+                "level": level,
+                "coords": COUNTRY_COORDS.get(country, [0, 0])
+            }
+        return jsonify({"success": True, "risk": enriched})
     except Exception as e:
         return jsonify({"success": False, "risk": {}})
 
