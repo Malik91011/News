@@ -54,7 +54,12 @@
     }
     .card:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(232, 197, 71, 0.4); transform: translateY(-12px); }
     .card-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 1.2rem; color: #fff; line-height: 1.2; }
-    .card-summary { font-size: 0.95rem; color: #aaa; line-height: 1.8; margin-bottom: 2.5rem; font-weight: 300; }
+    .card-summary { font-size: 0.92rem; color: #bbb; line-height: 1.75; margin-bottom: 1.2rem; font-weight: 300; }
+    .card-intel { margin-bottom: 2rem; }
+    .card-intel-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 3px; }
+    .card-intel-label.assessment { color: #e8c547; }
+    .card-intel-label.precaution { color: #ff7b7b; }
+    .card-intel-text { font-size: 0.82rem; color: #999; line-height: 1.6; font-weight: 300; }
     .card-meta { margin-top: auto; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #666; display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 1.5rem; align-items: center; }
     
     .share-btn { 
@@ -395,7 +400,15 @@
             <div class="card">
                 <a href="${a.url}" target="_blank" style="text-decoration:none; color:inherit;">
                     <div class="card-title">${a.title}</div>
-                    <div class="card-summary">${a.summary}</div>
+                    <div class="card-summary">${a.summary || ''}</div>
+                    <div class="card-intel">
+                        <div class="card-intel-label assessment">▸ Assessment</div>
+                        <div class="card-intel-text">${a.assessment || 'Situation under review.'}</div>
+                    </div>
+                    <div class="card-intel">
+                        <div class="card-intel-label precaution">⚠ Precaution</div>
+                        <div class="card-intel-text">${a.precaution || 'Monitor official sources.'}</div>
+                    </div>
                 </a>
                 <div class="card-meta">
                     <span>${a.source}</span>
