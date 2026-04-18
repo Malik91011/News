@@ -178,14 +178,28 @@
     mapBtn.className = 'cat-btn';
     mapBtn.style.color = 'var(--accent)';
     mapBtn.innerHTML = 'GLOBAL MAP';
-    mapBtn.onclick = openGlobalMap;
+    mapBtn.onclick = function (e) {
+    e.preventDefault();
+    openGlobalMap();
+};
     nav.appendChild(mapBtn);
 
     loadContent();
   }
 
-  function openGlobalMap() { document.getElementById('mapOverlay').style.display = 'flex'; }
-  function closeMap() { document.getElementById('mapOverlay').style.display = 'none'; }
+  function openGlobalMap() {
+    const overlay = document.getElementById("mapOverlay");
+    overlay.style.display = "flex";
+
+    // ensure DOM is visible before Leaflet loads
+    setTimeout(() => {
+        initMap();
+    }, 200);
+}
+
+function closeMap() {
+    document.getElementById("mapOverlay").style.display = "none";
+}
 
   function openShare(url, title) {
     currentShareUrl = url;
@@ -294,11 +308,6 @@ function initMap(){
         fetchRisk();
         setInterval(fetchRisk,30000);
     });
-}
-
-function openGlobalMap(){
-    document.getElementById("mapOverlay").style.display="flex";
-    setTimeout(initMap,100);
 }
 </script>
 </body>
