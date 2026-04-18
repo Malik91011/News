@@ -9,6 +9,19 @@ from flask import Flask, request, jsonify, render_template
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ─── SIMPLE IN-MEMORY CACHE ──────────────────────────────────
+_cache = {}   # key -> (timestamp, value)
+CACHE_TTL = 300  # 5 minutes
+
+def cache_get(key):
+    entry = _cache.get(key)
+    if entry and (time.time() - entry[0]) < CACHE_TTL:
+        return entry[1]
+    return None
+
+def cache_set(key, value):
+    _cache[key] = (time.time(), value)
+
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, '../templates')
 app = Flask(__name__, template_folder=template_dir)
@@ -147,9 +160,16 @@ def get_live_headlines(category, query=None):
 
 
 def summarize_with_ai(headlines, category):
-    """One Gemini call for all headlines — compact output to avoid truncation."""
+    """One Gemini call for all headlines — cached for 5 min to avoid rate limits."""
     if not headlines:
         return []
+
+    # Return cached result if fresh
+    cache_key = f"news_{category}"
+    cached = cache_get(cache_key)
+    if cached:
+        logger.info(f"Cache HIT for {cache_key}")
+        return cached
 
     # Build minimal input list
     items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
@@ -203,6 +223,7 @@ def summarize_with_ai(headlines, category):
                 "category":   category,
                 "time":       h["published"],
             })
+        cache_set(cache_key, results)
         return results
 
     except Exception as ex:
@@ -345,7 +366,12 @@ def news():
 
 @app.route("/api/summary")
 def summary():
-    """World briefing for the status bar — pulled from global RSS."""
+    """World briefing for the status bar — cached 5 min to avoid rate limits."""
+    cached = cache_get("world_summary")
+    if cached:
+        logger.info("Cache HIT: world_summary")
+        return jsonify({"success": True, "summary": cached})
+
     headlines = []
     for url in ["https://feeds.bbci.co.uk/news/world/rss.xml",
                 "https://www.aljazeera.com/xml/rss/all.xml",
@@ -367,12 +393,13 @@ def summary():
     )
     try:
         text = gemini(prompt, temperature=0.3)
-        # Strip quotes if model wraps in them
         text = text.strip().strip('"').strip("'")
+        cache_set("world_summary", text)
         return jsonify({"success": True, "summary": text})
     except Exception as ex:
         logger.error(f"summary FAILED: {ex}")
-        return jsonify({"success": False, "summary": headlines[0] if headlines else "Feed active."})
+        fallback = headlines[0] if headlines else "Intelligence feed synchronized."
+        return jsonify({"success": False, "summary": fallback})
 
 
 @app.route("/api/risk")
