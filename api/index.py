@@ -14,24 +14,43 @@ template_dir = os.path.join(base_dir, '../templates')
 app = Flask(__name__, template_folder=template_dir)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+# Models tried in order — first success wins
+GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-2.5-flash",
+]
+GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 def gemini(prompt, temperature=0.3):
-    """Call Gemini REST API directly — no SDK, no silent failures."""
+    """Call Gemini REST API — tries multiple models so 404s never silently fail."""
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY not set")
-    resp = requests.post(
-        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": temperature, "maxOutputTokens": 2048}
-        },
-        timeout=20
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    text = data["candidates"][0]["content"]["parts"][0]["text"]
-    return text.strip()
+    last_err = None
+    for model in GEMINI_MODELS:
+        url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
+        try:
+            resp = requests.post(
+                url,
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": temperature, "maxOutputTokens": 2048}
+                },
+                timeout=25
+            )
+            if resp.status_code == 404:
+                logger.warning(f"Model {model} returned 404, trying next")
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            logger.info(f"Gemini success with model: {model}")
+            return text.strip()
+        except Exception as e:
+            last_err = e
+            logger.warning(f"Model {model} failed: {e}, trying next")
+            continue
+    raise Exception(f"All Gemini models failed. Last error: {last_err}")
 
 # ─── RSS FEEDS ────────────────────────────────────────────────
 
