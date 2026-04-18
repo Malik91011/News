@@ -129,35 +129,59 @@ def summarize_with_ai(headlines, category):
         return []
 
     fallback = [{
-        "title": h['title'],
-        "summary": "Live coverage update.",
-        "url": h['link'],
-        "source": h.get('source_label', category),
+        "title": h["title"],
+        "summary": h["title"],
+        "assessment": "Monitoring situation as details emerge.",
+        "precaution": "Stay informed through official sources.",
+        "url": h["link"],
+        "source": h.get("source_label", category),
         "category": category,
-        "time": h['published']
+        "time": h["published"]
     } for h in headlines]
 
-    prompt = f"""
-    Summarize each headline in 1 sentence.
-    Return JSON only — no markdown, no backticks — with keys:
-    title, summary, url, source, category, time
+    items = [{"title": h["title"], "url": h["link"],
+              "source_label": h.get("source_label", category),
+              "time": h["published"]} for h in headlines]
 
-    Use the provided source_label value as the source for each headline.
-    Headlines: {json.dumps(headlines)}
-    """
+    prompt = (
+        "You are a professional news intelligence analyst. "
+        "For each headline return a JSON array where each object has exactly these keys:\n"
+        "title (copy exactly), summary (2 sentences: what happened and why it matters), "
+        "assessment (1 sentence: broader significance or implication), "
+        "precaution (1 sentence: practical advice or what to watch), "
+        "url (copy exactly), source (copy source_label exactly), "
+        "category (always \"" + category + "\"), time (copy exactly).\n"
+        "Return ONLY a valid JSON array starting with [ and ending with ]. "
+        "No markdown, no backticks.\n\nHeadlines:\n" + json.dumps(items)
+    )
 
     try:
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-2.0-flash",
             contents=prompt
         )
-
         text = response.text.strip()
-        if "```" in text:
-            text = text.split("```")[1].replace("json", "").strip()
 
-        return json.loads(text)
-    except:
+        if "```" in text:
+            for part in text.split("```"):
+                part = part.strip().lstrip("json").strip()
+                if part.startswith("["):
+                    text = part
+                    break
+
+        start = text.find("[")
+        end = text.rfind("]") + 1
+        if start != -1 and end > start:
+            text = text[start:end]
+
+        parsed = json.loads(text)
+        for i, item in enumerate(parsed):
+            item.setdefault("summary", headlines[i]["title"] if i < len(headlines) else "")
+            item.setdefault("assessment", "Situation under review.")
+            item.setdefault("precaution", "Follow credible news sources for updates.")
+        return parsed
+
+    except Exception:
         return fallback
 
 
@@ -340,22 +364,37 @@ def news():
 
 @app.route("/api/summary")
 def summary():
-    cat = request.args.get("category", "Pakistan")
-    live = get_live_headlines(cat)
-
-    if not live:
-        return jsonify({"success": False, "summary": "No data"})
-
+    # Collect top headlines from multiple global feeds for a world briefing
     try:
-        prompt = f"Summarize in 15 words: {live[0]['title']}"
+        world_headlines = []
+        for url in [
+            "https://feeds.bbci.co.uk/news/world/rss.xml",
+            "https://www.aljazeera.com/xml/rss/all.xml",
+            "https://feeds.reuters.com/reuters/worldNews",
+        ]:
+            try:
+                feed = feedparser.parse(url)
+                world_headlines.extend([e.title for e in feed.entries[:4]])
+            except Exception:
+                continue
+
+        if not world_headlines:
+            return jsonify({"success": False, "summary": "Intelligence feed synchronized."})
+
+        prompt = (
+            "You are a world news anchor. Based on these global headlines, write ONE "
+            "concise 25-word briefing sentence summarizing the state of the world right now. "
+            "Be specific, factual and impactful. No filler phrases.\n\nHeadlines:\n"
+            + "\n".join(world_headlines[:12])
+        )
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-2.0-flash",
             contents=prompt,
-            config=types.GenerateContentConfig(temperature=1.0)
+            config=types.GenerateContentConfig(temperature=0.4)
         )
         return jsonify({"success": True, "summary": response.text.strip()})
-    except:
-        return jsonify({"success": False, "summary": live[0]["title"]})
+    except Exception:
+        return jsonify({"success": False, "summary": "Global intelligence feed active."})
 
 
 @app.route("/api/risk")
