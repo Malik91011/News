@@ -21,6 +21,8 @@ RSS_FEEDS = {
     "Business": "https://www.dawn.com/feeds/business"
 }
 
+# ---------------- NEWS ----------------
+
 def get_live_headlines(category, query=None):
     url = RSS_FEEDS.get(category, RSS_FEEDS["World"])
     feed = feedparser.parse(url)
@@ -33,82 +35,151 @@ def get_live_headlines(category, query=None):
 
     if query:
         query = query.lower()
-        entries = [e for e in entries if query in e.title.lower() or query in getattr(e, 'summary', '').lower()]
+        entries = [
+            e for e in entries
+            if query in e.title.lower() or query in getattr(e, 'summary', '').lower()
+        ]
 
-    headlines = []
-    for entry in entries[:12]:
-        headlines.append({
-            "title": entry.title,
-            "link": entry.link,
-            "published": entry.get("published", "Just Now")
-        })
-    return headlines
+    return [{
+        "title": e.title,
+        "link": e.link,
+        "published": e.get("published", "Just Now")
+    } for e in entries[:12]]
+
 
 def summarize_with_ai(headlines, category):
-    if not headlines: return []
+    if not headlines:
+        return []
 
-    source_name = "ARY News" if category == "ARY News" else "Dawn News" if category in ["Pakistan", "Politics", "Business"] else "Global Bureau"
-
-    fallback_news = [{
+    fallback = [{
         "title": h['title'],
-        "summary": f"Latest breaking coverage from {source_name}. Reported on {h['published']}.",
+        "summary": "Live coverage update.",
         "url": h['link'],
-        "source": source_name,
+        "source": category,
         "category": category,
         "time": h['published']
-    } for h in headlines[:8]]
+    } for h in headlines]
 
-    prompt = (
-        f"Analyze these news headlines from {source_name}: {json.dumps(headlines)}. "
-        "Create a short, engaging 1-sentence summary for each. "
-        "Return ONLY a JSON list."
-    )
+    prompt = f"""
+    Summarize each headline in 1 sentence.
+    Return JSON only with keys:
+    title, summary, url, source, category, time
+
+    Headlines: {json.dumps(headlines)}
+    """
 
     try:
         response = client.models.generate_content(
             model="gemini-3-flash-preview",
             contents=prompt
         )
-        text = response.text.strip()
 
+        text = response.text.strip()
         if "```" in text:
             text = text.split("```")[1].replace("json", "").strip()
 
         return json.loads(text)
     except:
-        return fallback_news
+        return fallback
+
+
+# ---------------- RISK ENGINE ----------------
+
+COUNTRY_KEYWORDS = {
+    "Pakistan": ["pakistan", "islamabad", "karachi"],
+    "India": ["india", "delhi"],
+    "United States of America": ["usa", "united states", "america"],
+    "China": ["china", "beijing"],
+    "Russia": ["russia", "moscow"],
+    "United Kingdom": ["uk", "britain", "london"],
+    "Ukraine": ["ukraine"],
+    "Iran": ["iran", "tehran"],
+    "Israel": ["israel"],
+    "France": ["france", "paris"],
+    "Germany": ["germany", "berlin"],
+    "Brazil": ["brazil"],
+    "Japan": ["japan", "tokyo"]
+}
+
+NEGATIVE = [
+    "war", "attack", "bomb", "conflict", "violence",
+    "protest", "military", "strike", "killed", "explosion",
+    "crisis", "tension", "terror"
+]
+
+
+def calculate_risk():
+    all_news = []
+    for cat in RSS_FEEDS:
+        all_news.extend(get_live_headlines(cat))
+
+    scores = {c: 0 for c in COUNTRY_KEYWORDS}
+
+    for a in all_news:
+        text = (a["title"]).lower()
+
+        for country, keys in COUNTRY_KEYWORDS.items():
+            if any(k in text for k in keys):
+                scores[country] += 1
+                if any(n in text for n in NEGATIVE):
+                    scores[country] += 3
+
+    result = {}
+    for c, s in scores.items():
+        if s >= 12:
+            result[c] = "critical"
+        elif s >= 6:
+            result[c] = "high"
+        elif s >= 2:
+            result[c] = "low"
+        else:
+            result[c] = "none"
+
+    return result
+
+
+# ---------------- ROUTES ----------------
 
 @app.route("/")
 def home():
     return render_template("index.html", categories=list(RSS_FEEDS.keys()))
 
+
 @app.route("/api/news")
 def news():
     cat = request.args.get("category", "Pakistan")
     query = request.args.get("q", "")
-    live_data = get_live_headlines(cat, query)
-    processed_news = summarize_with_ai(live_data, cat)
-    return jsonify({"success": True, "articles": processed_news})
+    live = get_live_headlines(cat, query)
+    return jsonify({"success": True, "articles": summarize_with_ai(live, cat)})
+
 
 @app.route("/api/summary")
 def summary():
     cat = request.args.get("category", "Pakistan")
-    live_data = get_live_headlines(cat)
+    live = get_live_headlines(cat)
 
-    if not live_data:
-        return jsonify({"success": False, "summary": "Intelligence feed synchronized..."})
-
-    top_story = live_data[0]['title']
+    if not live:
+        return jsonify({"success": False, "summary": "No data"})
 
     try:
+        prompt = f"Summarize in 15 words: {live[0]['title']}"
         response = client.models.generate_content(
             model="gemini-3-flash-preview",
-            contents=f"Summarize in 15 words: {top_story}",
+            contents=prompt,
             config=types.GenerateContentConfig(temperature=1.0)
         )
         return jsonify({"success": True, "summary": response.text.strip()})
     except:
-        return jsonify({"success": False, "summary": f"LIVE: {top_story}"})
+        return jsonify({"success": False, "summary": live[0]["title"]})
+
+
+@app.route("/api/risk")
+def risk():
+    try:
+        return jsonify({"success": True, "risk": calculate_risk()})
+    except Exception as e:
+        return jsonify({"success": False, "risk": {}})
+
 
 if __name__ == "__main__":
     app.run(debug=True)
