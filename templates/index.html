@@ -1,121 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PULSE — Real-Time News Dashboard</title>
 
-<title>PULSE — Real-Time News Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <!-- ✅ LEAFLET (FIXED LOCATION - OUTSIDE STYLE) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root { 
+        --bg: #050505; 
+        --card-bg: rgba(255, 255, 255, 0.03); 
+        --border: rgba(255, 255, 255, 0.1); 
+        --accent: #e8c547; 
+        --text: #f0f0f0; 
+        --muted: #888; 
+    }
 
-<style>
-:root { 
-    --bg: #050505; 
-    --card-bg: rgba(255, 255, 255, 0.03); 
-    --border: rgba(255, 255, 255, 0.1); 
-    --accent: #e8c547; 
-    --text: #f0f0f0; 
-    --muted: #888; 
-}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'IBM Plex Sans', sans-serif;
+        overflow-x: hidden;
+    }
 
-body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'IBM Plex Sans', sans-serif;
-    overflow-x: hidden;
-}
+    header {
+        border-bottom: 1px solid var(--border);
+        padding: 0 2.5rem;
+        display: flex;
+        justify-content: space-between;
+        height: 85px;
+        position: sticky;
+        top: 0;
+        background: rgba(5,5,5,0.85);
+        z-index: 1000;
+    }
 
-header {
-    border-bottom: 1px solid var(--border);
-    padding: 0 2.5rem;
-    display: flex;
-    justify-content: space-between;
-    height: 85px;
-    position: sticky;
-    top: 0;
-    background: rgba(5,5,5,0.85);
-    z-index: 1000;
-}
+    .logo {
+        font-family: 'Playfair Display';
+        font-size: 2rem;
+        color: var(--accent);
+    }
 
-.logo {
-    font-family: 'Playfair Display';
-    font-size: 2rem;
-    color: var(--accent);
-}
+    .search-container {
+        display: flex;
+        gap: 10px;
+    }
 
-.search-container {
-    display: flex;
-    gap: 10px;
-}
+    .search-container input {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: white;
+        padding: 8px;
+    }
 
-.search-container input {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: #fff;
-    padding: 8px;
-}
+    .search-container button {
+        background: var(--accent);
+        border: none;
+        padding: 8px 16px;
+        cursor: pointer;
+    }
 
-.search-container button {
-    background: var(--accent);
-    border: none;
-    padding: 8px 16px;
-    cursor: pointer;
-}
+    .categories {
+        display: flex;
+        gap: 15px;
+        padding: 10px 2.5rem;
+    }
 
-.categories {
-    display: flex;
-    gap: 15px;
-    padding: 10px 2.5rem;
-}
+    .cat-btn {
+        background: none;
+        border: none;
+        color: var(--muted);
+        cursor: pointer;
+    }
 
-.cat-btn {
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-}
+    .cat-btn.active {
+        color: var(--accent);
+    }
 
-.cat-btn.active {
-    color: var(--accent);
-}
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px,1fr));
+        gap: 20px;
+        padding: 2rem;
+    }
 
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px,1fr));
-    gap: 20px;
-    padding: 2rem;
-}
+    .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        padding: 20px;
+    }
 
-.card {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    padding: 20px;
-}
+    /* MAP OVERLAY */
+    .map-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(5,5,5,0.98);
+        z-index: 3000;
+        flex-direction: column;
+    }
 
-/* MAP */
-.map-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(5,5,5,0.98);
-    z-index: 3000;
-    flex-direction: column;
-}
-
-.map-overlay.active {
-    display: flex;
-}
-
-#map {
-    flex: 1;
-    width: 100%;
-}
-</style>
+    #map {
+        flex: 1;
+        width: 100%;
+    }
+  </style>
 </head>
 
 <body>
@@ -147,31 +143,42 @@ header {
 
 const CATEGORIES = ["Pakistan","World","Politics","Technology","Business"];
 let activeCategory = "Pakistan";
+let map = null;
 
-let map;
-let geoLayer;
-let riskData = {};
-
-function init(){
+function init() {
     const nav = document.getElementById("catNav");
 
-    CATEGORIES.forEach(cat=>{
+    CATEGORIES.forEach(cat => {
         const btn = document.createElement("button");
-        btn.className="cat-btn";
-        btn.innerText=cat;
-        btn.onclick=()=>switchCategory(cat);
+        btn.className = "cat-btn";
+        btn.innerText = cat;
+        btn.onclick = () => switchCategory(cat);
         nav.appendChild(btn);
     });
+
+    // GLOBAL MAP BUTTON
+    const mapBtn = document.createElement("button");
+    mapBtn.className = "cat-btn";
+    mapBtn.style.color = "var(--accent)";
+    mapBtn.innerHTML = "GLOBAL MAP";
+
+    mapBtn.addEventListener("click", function(e){
+        e.preventDefault();
+        openGlobalMap();
+    });
+
+    nav.appendChild(mapBtn);
 
     loadContent();
 }
 
 async function loadContent(){
-    const grid=document.getElementById("newsGrid");
-    const res=await fetch(`/api/news?category=${activeCategory}`);
-    const data=await res.json();
+    const grid = document.getElementById("newsGrid");
 
-    grid.innerHTML=data.articles.map(a=>`
+    const res = await fetch(`/api/news?category=${activeCategory}`);
+    const data = await res.json();
+
+    grid.innerHTML = data.articles.map(a => `
         <div class="card">
             <h3>${a.title}</h3>
             <p>${a.summary}</p>
@@ -180,7 +187,7 @@ async function loadContent(){
 }
 
 function switchCategory(cat){
-    activeCategory=cat;
+    activeCategory = cat;
     loadContent();
 }
 
@@ -188,29 +195,39 @@ function searchNews(){
     loadContent();
 }
 
-/* MAP */
+/* ================= MAP ================= */
+
 function openGlobalMap(){
-    document.getElementById("mapOverlay").classList.add("active");
-    setTimeout(initMap,200);
+    document.getElementById("mapOverlay").style.display = "flex";
+
+    setTimeout(() => {
+        if (!map) initMap();
+        else map.invalidateSize();
+    }, 200);
 }
 
 function closeMap(){
-    document.getElementById("mapOverlay").classList.remove("active");
+    document.getElementById("mapOverlay").style.display = "none";
 }
 
 function initMap(){
 
-    if(map) return;
-
     map = L.map("map").setView([20,0],2);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png")
-    .addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: ''
+    }).addTo(map);
 
     fetch("https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json")
-    .then(r=>r.json())
-    .then(data=>{
-        geoLayer=L.geoJSON(data).addTo(map);
+    .then(r => r.json())
+    .then(data => {
+        L.geoJSON(data, {
+            style: {
+                color: "#444",
+                weight: 1,
+                fillOpacity: 0.2
+            }
+        }).addTo(map);
     });
 }
 
