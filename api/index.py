@@ -23,39 +23,34 @@ GEMINI_MODELS = [
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 def gemini(prompt, temperature=0.3):
-    """Call Gemini REST API — tries multiple models, retries on 429."""
+    """Call Gemini REST API — one attempt per model, fail fast, no waits."""
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY not set")
     last_err = None
     for model in GEMINI_MODELS:
         url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
-        for attempt in range(2):   # 2 attempts per model on 429
-            try:
-                resp = requests.post(
-                    url,
-                    json={
-                        "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"temperature": temperature, "maxOutputTokens": 1024}
-                    },
-                    timeout=25
-                )
-                if resp.status_code == 404:
-                    logger.warning(f"Model {model} returned 404, skipping")
-                    break   # try next model
-                if resp.status_code == 429:
-                    wait = 5 if attempt == 0 else 10
-                    logger.warning(f"Model {model} 429 rate limited, waiting {wait}s")
-                    time.sleep(wait)
-                    continue  # retry same model
-                resp.raise_for_status()
-                data = resp.json()
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
-                logger.info(f"Gemini success: {model}")
-                return text.strip()
-            except Exception as e:
-                last_err = e
-                logger.warning(f"Model {model} attempt {attempt+1} failed: {e}")
-                break
+        try:
+            resp = requests.post(
+                url,
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": temperature, "maxOutputTokens": 2048}
+                },
+                timeout=20
+            )
+            if resp.status_code in (404, 429):
+                logger.warning(f"Model {model} returned {resp.status_code}, trying next")
+                last_err = resp.status_code
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            logger.info(f"Gemini success: {model}")
+            return text.strip()
+        except Exception as e:
+            last_err = e
+            logger.warning(f"Model {model} failed: {e}")
+            continue
     raise Exception(f"All Gemini models failed. Last: {last_err}")
 
 # ─── RSS FEEDS ────────────────────────────────────────────────
@@ -151,87 +146,69 @@ def get_live_headlines(category, query=None):
              "source_label": getattr(e, "_src", category)} for e in unique[:12]]
 
 
-def parse_gemini_json(text):
-    """Robustly extract a JSON array from Gemini output."""
-    text = text.strip()
-    # Strip markdown fences
-    if "```" in text:
-        for part in text.split("```"):
-            part = part.strip()
-            if part.startswith("json"):
-                part = part[4:].strip()
-            if part.startswith("["):
-                text = part
-                break
-    # Extract outermost JSON array
-    s = text.find("[")
-    e = text.rfind("]") + 1
-    if s != -1 and e > s:
-        text = text[s:e]
-    return json.loads(text)
+def summarize_with_ai(headlines, category):
+    """One Gemini call for all headlines — compact output to avoid truncation."""
+    if not headlines:
+        return []
 
+    # Build minimal input list
+    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
 
-def summarize_one(h, category):
-    """Ask Gemini to analyse a single headline — much more reliable than batching."""
     prompt = (
-        "You are a news intelligence analyst. Analyse this news headline and return "
-        "a single JSON object (not an array) with exactly these keys:\n"
-        '  "summary"    : 2 sentences — what happened and why it matters\n'
-        '  "assessment" : 1 sentence — broader analytical significance\n'
-        '  "precaution" : 1 sentence — practical advice or what to watch\n'
-        "Return ONLY the JSON object. No markdown, no backticks, no extra text.\n\n"
-        "Headline: " + h["title"]
+        "You are a news analyst. For each item return a JSON array. "
+        "Each object: i (copy number), s (summary: 1 sentence what happened), "
+        "a (assessment: 1 sentence significance), p (precaution: 1 sentence advice). "
+        "Be concise. Return ONLY a JSON array, no markdown, no backticks.\n\n"
+        + json.dumps(items)
     )
+
+    fallback = [{
+        "title": h["title"], "summary": h["title"],
+        "assessment": "Monitoring as situation develops.",
+        "precaution": "Follow credible sources for updates.",
+        "url": h["link"], "source": h.get("source_label", category),
+        "category": category, "time": h["published"],
+    } for h in headlines]
+
     try:
-        text = gemini(prompt, temperature=0.3)
-        logger.info(f"Single summarise response: {text[:120]}")
-        # Parse object
+        text = gemini(prompt, temperature=0.2)
+        logger.info(f"Gemini batch OK, response: {text[:150]}")
+
+        # Strip fences
         text = text.strip()
         if "```" in text:
             for part in text.split("```"):
                 part = part.strip().lstrip("json").strip()
-                if part.startswith("{"):
+                if part.startswith("["):
                     text = part
                     break
-        s = text.find("{")
-        e = text.rfind("}") + 1
+        s, e = text.find("["), text.rfind("]") + 1
         if s != -1 and e > s:
             text = text[s:e]
-        obj = json.loads(text)
-        return {
-            "title":      h["title"],
-            "summary":    obj.get("summary", h["title"]),
-            "assessment": obj.get("assessment", "Situation under review."),
-            "precaution": obj.get("precaution", "Monitor credible sources."),
-            "url":        h["link"],
-            "source":     h.get("source_label", category),
-            "category":   category,
-            "time":       h["published"],
-        }
+
+        parsed = json.loads(text)
+
+        # Map back using index i
+        index_map = {obj.get("i", idx): obj for idx, obj in enumerate(parsed)}
+        results = []
+        for i, h in enumerate(headlines):
+            obj = index_map.get(i, {})
+            results.append({
+                "title":      h["title"],
+                "summary":    obj.get("s") or h["title"],
+                "assessment": obj.get("a") or "Monitoring situation.",
+                "precaution": obj.get("p") or "Follow credible sources.",
+                "url":        h["link"],
+                "source":     h.get("source_label", category),
+                "category":   category,
+                "time":       h["published"],
+            })
+        return results
+
     except Exception as ex:
-        logger.error(f"summarize_one FAILED for '{h['title']}': {ex}")
-        return {
-            "title":      h["title"],
-            "summary":    h["title"],
-            "assessment": "Monitoring as situation develops.",
-            "precaution": "Follow credible sources for updates.",
-            "url":        h["link"],
-            "source":     h.get("source_label", category),
-            "category":   category,
-            "time":       h["published"],
-        }
+        logger.error(f"summarize_with_ai FAILED: {ex} | raw: {text[:200] if 'text' in dir() else 'N/A'}")
+        return fallback
 
-
-def summarize_with_ai(headlines, category):
-    """Process each headline individually with rate-limit backoff."""
-    if not headlines:
-        return []
-    results = []
-    for i, h in enumerate(headlines[:8]):   # cap at 8 to stay within free-tier RPM
-        if i > 0:
-            time.sleep(0.8)                 # 0.8s gap = ~75 RPM max, well under 60 RPM limit
-        results.append(summarize_one(h, category))
-    return results
 
 
 # ─── RISK ENGINE ─────────────────────────────────────────────
