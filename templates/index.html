@@ -55,7 +55,6 @@
     .card-summary { font-size: 0.95rem; color: #aaa; line-height: 1.8; margin-bottom: 2.5rem; font-weight: 300; }
     .card-meta { margin-top: auto; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #666; display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 1.5rem; align-items: center; }
     
-    /* NEW GOLDEN SHARE BUTTON */
     .share-btn { 
         background: none; border: none; color: var(--accent); 
         font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; 
@@ -67,15 +66,27 @@
     .pulse { height: 8px; width: 8px; background: #ff4d4d; border-radius: 50%; display: inline-block; margin-right: 6px; box-shadow: 0 0 10px #ff4d4d; animation: pulse-anim 2s infinite; }
     @keyframes pulse-anim { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-    /* --- GLOBAL RISK MAP MODAL --- */
+    /* --- MAP MODAL STYLING --- */
     .map-overlay {
         display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(5, 5, 5, 0.98); backdrop-filter: blur(15px); z-index: 3000;
         padding: 2rem; flex-direction: column;
     }
     .map-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
-    .map-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: auto; }
-    .map-maintenance { text-align: center; color: var(--muted); font-family: 'IBM Plex Mono'; }
+    .map-container { 
+        flex-grow: 1; border: 1px solid var(--border); position: relative; overflow: hidden; 
+        background: #000; display: flex;
+    }
+    
+    /* Risk Legend Overlay */
+    .risk-legend {
+        position: absolute; bottom: 30px; left: 30px; 
+        background: rgba(10, 10, 10, 0.9); border: 1px solid var(--accent); 
+        padding: 1.5rem; font-family: 'IBM Plex Mono', monospace; z-index: 3005;
+        pointer-events: none;
+    }
+    .legend-item { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 0.7rem; letter-spacing: 1px; }
+    .legend-box { width: 12px; height: 12px; border-radius: 2px; }
 
     .share-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 2000; justify-content: center; align-items: center; }
     .share-menu { background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; width: 340px; text-align: center; }
@@ -107,14 +118,42 @@
     <div class="map-header">
         <div class="logo">PULSE<span>.</span> RISK MAP</div>
         <div style="color: var(--accent); font-family: 'IBM Plex Mono'; font-size: 0.7rem; border: 1px solid var(--accent); padding: 5px 15px; border-radius: 4px; animation: pulse-anim 2s infinite;">
-            SYSTEM UNDER MAINTENANCE — LIVE DATA OFFLINE
+            SATELLITE INTELLIGENCE LIVE
         </div>
         <button class="cat-btn" onclick="closeMap()" style="color: #fff;">[ ESC ] CLOSE</button>
     </div>
-    <div class="map-container" id="injectedMap">
-        <div class="map-maintenance">
-            <h2 style="color: var(--accent); margin-bottom: 10px; font-family: 'Playfair Display';">MAP OFFLINE</h2>
-            <p style="font-size: 0.8rem; letter-spacing: 1px;">GEOSPATIAL RISK INTELLIGENCE IS UNDERGOING UPDATES.</p>
+    
+    <div class="map-container">
+        <iframe 
+            src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d11340455.5181467!2d69.3451!3d30.3753!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2s!4v1715800000000!5m2!1sen!2s" 
+            width="100%" 
+            height="100%" 
+            style="border:0; filter: grayscale(100%) invert(92%) contrast(83%);" 
+            allowfullscreen="" 
+            loading="lazy">
+        </iframe>
+
+        <div class="risk-legend">
+            <h4 style="color: var(--accent); font-size: 0.8rem; margin-bottom: 15px; text-transform: uppercase;">Risk Assessment</h4>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #ff4d4d;"></div>
+                <span>CRITICAL RISK (RED)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #e8c547;"></div>
+                <span>HIGH RISK (YELLOW)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #4dff88;"></div>
+                <span>LOW RISK (GREEN)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #555;"></div>
+                <span>NO DATA (GREY)</span>
+            </div>
+            <p style="margin-top: 15px; font-size: 0.55rem; color: var(--muted); line-height: 1.4;">
+                *Hover data represents geopolitical <br>stability and market volatility.
+            </p>
         </div>
     </div>
 </div>
