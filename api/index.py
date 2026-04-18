@@ -4,16 +4,14 @@ import feedparser
 import time
 from flask import Flask, request, jsonify, render_template
 from google import genai
-from google.genai import types # Added for configuration
+from google.genai import types
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, '../templates')
 app = Flask(__name__, template_folder=template_dir)
 
-# Initialize Gemini Client
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# Updated Reliable RSS Feeds for 2026
 RSS_FEEDS = {
     "Pakistan": "https://www.dawn.com/feeds/home",
     "ARY News": "https://arynews.tv/feed/",
@@ -26,10 +24,10 @@ RSS_FEEDS = {
 def get_live_headlines(category, query=None):
     url = RSS_FEEDS.get(category, RSS_FEEDS["World"])
     feed = feedparser.parse(url)
-    
+
     entries = sorted(
-        feed.entries, 
-        key=lambda x: x.get('published_parsed', time.gmtime(0)), 
+        feed.entries,
+        key=lambda x: x.get('published_parsed', time.gmtime(0)),
         reverse=True
     )
 
@@ -48,9 +46,9 @@ def get_live_headlines(category, query=None):
 
 def summarize_with_ai(headlines, category):
     if not headlines: return []
-    
+
     source_name = "ARY News" if category == "ARY News" else "Dawn News" if category in ["Pakistan", "Politics", "Business"] else "Global Bureau"
-    
+
     fallback_news = [{
         "title": h['title'],
         "summary": f"Latest breaking coverage from {source_name}. Reported on {h['published']}.",
@@ -63,25 +61,21 @@ def summarize_with_ai(headlines, category):
     prompt = (
         f"Analyze these news headlines from {source_name}: {json.dumps(headlines)}. "
         "Create a short, engaging 1-sentence summary for each. "
-        "Return ONLY a JSON list of objects with these keys: title, summary, url, source, category, time. "
-        "Strictly no markdown tags or code blocks."
+        "Return ONLY a JSON list."
     )
-    
+
     try:
-        # UPDATED: Using the definitive 2026 Model ID
         response = client.models.generate_content(
-            model="gemini-3-flash-preview", 
+            model="gemini-3-flash-preview",
             contents=prompt
         )
         text = response.text.strip()
-        
-        # Robust cleaning for Gemini 3 JSON output
+
         if "```" in text:
             text = text.split("```")[1].replace("json", "").strip()
-        
+
         return json.loads(text)
-    except Exception as e:
-        print(f"Grid Summary Error: {e}")
+    except:
         return fallback_news
 
 @app.route("/")
@@ -100,21 +94,20 @@ def news():
 def summary():
     cat = request.args.get("category", "Pakistan")
     live_data = get_live_headlines(cat)
+
     if not live_data:
         return jsonify({"success": False, "summary": "Intelligence feed synchronized..."})
-    
+
     top_story = live_data[0]['title']
+
     try:
-        # UPDATED: Enhanced Prompt and Model ID
-        prompt = f"Provide a single, authoritative news flash for: {top_story}. Maximum 15 words. No hashtags."
         response = client.models.generate_content(
-            model="gemini-3-flash-preview", 
-            contents=prompt,
-            config=types.GenerateContentConfig(temperature=1.0) # Optimized for 2026 reasoning
+            model="gemini-3-flash-preview",
+            contents=f"Summarize in 15 words: {top_story}",
+            config=types.GenerateContentConfig(temperature=1.0)
         )
         return jsonify({"success": True, "summary": response.text.strip()})
-    except Exception as e:
-        print(f"Briefing Error: {e}")
+    except:
         return jsonify({"success": False, "summary": f"LIVE: {top_story}"})
 
 if __name__ == "__main__":
