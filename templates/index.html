@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PULSE — Real-Time News Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
   <style>
     :root { 
         --bg: #050505; 
@@ -18,7 +15,7 @@
         --muted: #888; 
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; overflow-x: hidden; }
+    body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 
     header { 
         border-bottom: 1px solid var(--border); padding: 0 2.5rem; display: flex; 
@@ -27,16 +24,20 @@
     }
     .logo { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 900; color: var(--accent); letter-spacing: -1.5px; }
 
-    .search-container { display: flex; align-items: center; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 50px; padding: 5px 6px 5px 22px; }
-    .search-container input { background: transparent; border: none; color: #fff; font-size: 0.9rem; outline: none; width: 240px; }
+    .search-container { 
+        display: flex; align-items: center; background: rgba(255,255,255,0.05); 
+        border: 1px solid var(--border); border-radius: 50px; padding: 5px 6px 5px 22px; 
+        transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); 
+    }
+    .search-container input { background: transparent; border: none; color: #fff; font-size: 0.9rem; outline: none; width: 240px; font-weight: 300; }
     .search-container button { background: var(--accent); border: none; color: #000; font-weight: 700; font-size: 0.75rem; padding: 10px 24px; cursor: pointer; border-radius: 50px; text-transform: uppercase; }
 
     .time-strip { background: #000; border-bottom: 1px solid var(--border); padding: 10px 2.5rem; display: flex; gap: 2.5rem; overflow-x: auto; scrollbar-width: none; }
     .time-item { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
     .time-item span { color: var(--accent); margin-left: 8px; font-weight: 600; }
 
-    .categories { display: flex; padding: 0 2.5rem; border-bottom: 1px solid var(--border); overflow-x: auto; gap: 1.5rem; scrollbar-width: none; }
-    .cat-btn { background: none; border: none; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; padding: 1.5rem 0.5rem; cursor: pointer; text-transform: uppercase; border-bottom: 2px solid transparent; transition: 0.3s ease; }
+    .categories { display: flex; padding: 0 2.5rem; border-bottom: 1px solid var(--border); overflow-x: auto; gap: 1.5rem; scrollbar-width: none; background: var(--bg); }
+    .cat-btn { background: none; border: none; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; padding: 1.5rem 0.5rem; cursor: pointer; text-transform: uppercase; border-bottom: 2px solid transparent; transition: 0.3s ease; letter-spacing: 1px; white-space: nowrap; }
     .cat-btn:hover, .cat-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
     .briefing-strip { background: #0a0a0a; border-bottom: 1px solid var(--border); padding: 0.9rem 2.5rem; font-size: 0.85rem; display: flex; align-items: center; }
@@ -45,25 +46,41 @@
     main { padding: 3rem 2.5rem; max-width: 1600px; margin: 0 auto; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 2rem; }
     
-    .card { background: var(--card-bg); border: 1px solid var(--border); padding: 2.5rem; border-radius: 12px; display: flex; flex-direction: column; height: 100%; transition: transform 0.4s ease; }
-    .card:hover { transform: translateY(-10px); border-color: var(--accent); }
-    .card-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 1.2rem; color: #fff; }
-    .card-summary { font-size: 0.95rem; color: #aaa; line-height: 1.8; margin-bottom: 2.5rem; }
-
-    /* --- MAP MODAL & DARK FILTER --- */
-    .map-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 5, 5, 0.98); backdrop-filter: blur(15px); z-index: 3000; padding: 2rem; flex-direction: column; }
-    .map-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-    .map-container { flex-grow: 1; border: 1px solid var(--border); position: relative; background: #000; overflow: hidden; }
+    .card { 
+        background: var(--card-bg); border: 1px solid var(--border); padding: 2.5rem; text-decoration: none; color: inherit; 
+        transition: all 0.5s cubic-bezier(0.165, 0.84, 0.44, 1); border-radius: 12px; display: flex; flex-direction: column; height: 100%; position: relative; overflow: hidden;
+    }
+    .card:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(232, 197, 71, 0.4); transform: translateY(-12px); }
+    .card-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 1.2rem; color: #fff; line-height: 1.2; }
+    .card-summary { font-size: 0.95rem; color: #aaa; line-height: 1.8; margin-bottom: 2.5rem; font-weight: 300; }
+    .card-meta { margin-top: auto; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #666; display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 1.5rem; align-items: center; }
     
-    /* Dark Theme for Leaflet Tiles */
-    .leaflet-tile-container { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
-    .leaflet-container { background: #000 !important; }
+    /* NEW GOLDEN SHARE BUTTON */
+    .share-btn { 
+        background: none; border: none; color: var(--accent); 
+        font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; 
+        font-weight: 700; cursor: pointer; text-transform: uppercase; 
+        letter-spacing: 1px; padding: 0; transition: opacity 0.3s;
+    }
+    .share-btn:hover { opacity: 0.7; }
 
-    .risk-legend { position: absolute; bottom: 30px; left: 30px; background: rgba(10, 10, 10, 0.95); border: 1px solid var(--accent); padding: 1.5rem; font-family: 'IBM Plex Mono', monospace; z-index: 3005; pointer-events: none; }
-    .legend-item { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 0.7rem; }
-    .legend-box { width: 12px; height: 12px; border-radius: 2px; }
+    .pulse { height: 8px; width: 8px; background: #ff4d4d; border-radius: 50%; display: inline-block; margin-right: 6px; box-shadow: 0 0 10px #ff4d4d; animation: pulse-anim 2s infinite; }
+    @keyframes pulse-anim { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-    #mapTooltip { display:none; position: fixed; background: #e8c547; color: #000; padding: 10px; font-family: 'IBM Plex Mono'; font-size: 0.7rem; z-index: 5000; pointer-events: none; border: 1px solid #000; font-weight: bold; }
+    /* --- GLOBAL RISK MAP MODAL --- */
+    .map-overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(5, 5, 5, 0.98); backdrop-filter: blur(15px); z-index: 3000;
+        padding: 2rem; flex-direction: column;
+    }
+    .map-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+    .map-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: auto; }
+    .map-maintenance { text-align: center; color: var(--muted); font-family: 'IBM Plex Mono'; }
+
+    .share-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 2000; justify-content: center; align-items: center; }
+    .share-menu { background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; width: 340px; text-align: center; }
+    .share-opt { background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #fff; padding: 15px; font-size: 0.65rem; font-family: 'IBM Plex Mono', monospace; text-decoration: none; cursor: pointer; display: block; margin-bottom: 10px; }
+    .share-opt:hover { background: var(--accent); color: #000; }
   </style>
 </head>
 <body>
@@ -89,86 +106,41 @@
 <div class="map-overlay" id="mapOverlay">
     <div class="map-header">
         <div class="logo">PULSE<span>.</span> RISK MAP</div>
+        <div style="color: var(--accent); font-family: 'IBM Plex Mono'; font-size: 0.7rem; border: 1px solid var(--accent); padding: 5px 15px; border-radius: 4px; animation: pulse-anim 2s infinite;">
+            SYSTEM UNDER MAINTENANCE — LIVE DATA OFFLINE
+        </div>
         <button class="cat-btn" onclick="closeMap()" style="color: #fff;">[ ESC ] CLOSE</button>
     </div>
-    <div class="map-container">
-        <div id="leafletMap" style="width: 100%; height: 100%;"></div>
-        <div id="mapTooltip"></div>
-        <div class="risk-legend">
-            <h4 style="color: var(--accent); font-size: 0.8rem; margin-bottom: 15px; text-transform: uppercase;">Intelligence Legend</h4>
-            <div class="legend-item"><div class="legend-box" style="background: #ff4d4d;"></div><span>CRITICAL</span></div>
-            <div class="legend-item"><div class="legend-box" style="background: #e8c547;"></div><span>HIGH RISK</span></div>
-            <div class="legend-item"><div class="legend-box" style="background: #4dff88;"></div><span>STABLE</span></div>
+    <div class="map-container" id="injectedMap">
+        <div class="map-maintenance">
+            <h2 style="color: var(--accent); margin-bottom: 10px; font-family: 'Playfair Display';">MAP OFFLINE</h2>
+            <p style="font-size: 0.8rem; letter-spacing: 1px;">GEOSPATIAL RISK INTELLIGENCE IS UNDERGOING UPDATES.</p>
         </div>
     </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div class="share-overlay" id="shareOverlay">
+    <div class="share-menu">
+        <h4 style="font-family: 'Playfair Display'; color: var(--accent); margin-bottom: 2rem;">DISTRIBUTE</h4>
+        <div class="share-options">
+            <a id="shareX" class="share-opt" target="_blank">X.COM</a>
+            <a id="shareFB" class="share-opt" target="_blank">FACEBOOK</a>
+            <a id="shareLI" class="share-opt" target="_blank">LINKEDIN</a>
+            <div onclick="copyToClipboard()" class="share-opt">COPY LINK</div>
+        </div>
+        <span onclick="closeShare()" style="color: var(--muted); cursor: pointer; font-size: 0.7rem; text-decoration: underline; margin-top: 1rem; display: block;">DISMISS</span>
+    </div>
+</div>
 
 <script>
   const CATEGORIES = {{ categories | tojson }};
   let activeCategory = "Pakistan";
-  let map;
-  let riskDatabase = {};
-
-  async function initFreeMap() {
-    // 1. Fetch Intelligence Data
-    const res = await fetch('/api/risk-data');
-    riskDatabase = await res.json();
-
-    // 2. Setup Map
-    map = L.map('leafletMap', { zoomControl: false, attributionControl: false }).setView([20, 0], 2);
-
-    // 3. Add Tiles (Standard OSM with CSS Filter in Styles)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    // 4. Load Country Borders (GeoJSON)
-    const geoResponse = await fetch('https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson');
-    const geoData = await geoResponse.json();
-
-    const tooltip = document.getElementById('mapTooltip');
-
-    L.geoJson(geoData, {
-        style: function(feature) {
-            const code = feature.properties.ISO_A2;
-            const risk = riskDatabase[code];
-            return {
-                fillColor: risk ? risk.color : '#222',
-                fillOpacity: risk ? 0.6 : 0.05,
-                color: 'rgba(255,255,255,0.1)',
-                weight: 1
-            };
-        },
-        onEachFeature: function(feature, layer) {
-            layer.on({
-                mouseover: function(e) {
-                    const code = feature.properties.ISO_A2;
-                    const risk = riskDatabase[code];
-                    if(risk) {
-                        tooltip.style.display = 'block';
-                        tooltip.innerHTML = `REGION: ${feature.properties.ADMIN}<br>STATUS: ${risk.level}<br>${risk.info}`;
-                        tooltip.style.background = risk.color;
-                        layer.setStyle({ fillOpacity: 0.8 });
-                    }
-                },
-                mousemove: function(e) {
-                    tooltip.style.left = (e.originalEvent.clientX + 15) + 'px';
-                    tooltip.style.top = (e.originalEvent.clientY + 15) + 'px';
-                },
-                mouseout: function(e) {
-                    tooltip.style.display = 'none';
-                    const code = feature.properties.ISO_A2;
-                    layer.setStyle({ fillOpacity: riskDatabase[code] ? 0.6 : 0.05 });
-                }
-            });
-        }
-    }).addTo(map);
-  }
+  let currentShareUrl = "";
 
   function updateWorldClock() {
     const zones = [
         { label: 'Islamabad', zone: 'Asia/Karachi' }, { label: 'London', zone: 'Europe/London' },
-        { label: 'New York', zone: 'America/New_York' }, { label: 'Tokyo', zone: 'Asia/Tokyo' }
+        { label: 'New York', zone: 'America/New_York' }, { label: 'Tokyo', zone: 'Asia/Tokyo' }, { label: 'Dubai', zone: 'Asia/Dubai' }
     ];
     const now = new Date();
     document.getElementById('timeStrip').innerHTML = zones.map(z => {
@@ -177,9 +149,19 @@
     }).join('');
   }
 
+  async function updateBriefing() {
+    try {
+        const res = await fetch(`/api/summary?category=${activeCategory}`);
+        const data = await res.json();
+        if(data.success) document.getElementById('briefingText').innerText = data.summary;
+    } catch(e) {}
+  }
+
   function init() {
     updateWorldClock();
     setInterval(updateWorldClock, 60000);
+    setInterval(updateBriefing, 30000);
+    
     const nav = document.getElementById('catNav');
     CATEGORIES.forEach(cat => {
       const btn = document.createElement('button');
@@ -188,18 +170,27 @@
       btn.onclick = () => switchCategory(cat);
       nav.appendChild(btn);
     });
+    
     const mapBtn = document.createElement('button');
-    mapBtn.className = 'cat-btn'; mapBtn.style.color = 'var(--accent)';
-    mapBtn.innerHTML = 'GLOBAL RISK MAP'; mapBtn.onclick = () => {
-        document.getElementById('mapOverlay').style.display = 'flex';
-        setTimeout(() => map.invalidateSize(), 200); // Ensures Leaflet renders correctly in modal
-    };
+    mapBtn.className = 'cat-btn';
+    mapBtn.style.color = 'var(--accent)';
+    mapBtn.innerHTML = 'GLOBAL MAP';
+    mapBtn.onclick = openGlobalMap;
     nav.appendChild(mapBtn);
+
     loadContent();
-    initFreeMap();
   }
 
+  function openGlobalMap() { document.getElementById('mapOverlay').style.display = 'flex'; }
   function closeMap() { document.getElementById('mapOverlay').style.display = 'none'; }
+
+  function openShare(url, title) {
+    currentShareUrl = url;
+    document.getElementById('shareX').href = `https://x.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
+    document.getElementById('shareOverlay').style.display = 'flex';
+  }
+  function closeShare() { document.getElementById('shareOverlay').style.display = 'none'; }
+  function copyToClipboard() { navigator.clipboard.writeText(currentShareUrl); alert("LINK COPIED"); closeShare(); }
 
   async function loadContent(query = "") {
     const grid = document.getElementById('newsGrid');
@@ -213,11 +204,18 @@
                     <div class="card-title">${a.title}</div>
                     <div class="card-summary">${a.summary}</div>
                 </a>
-                <div class="card-meta"><span>${a.source}</span><span><span class="pulse"></span> LIVE</span></div>
+                <div class="card-meta">
+                    <span>${a.source}</span>
+                    <div style="display:flex; gap:15px; align-items: center;">
+                        <button class="share-btn" onclick="openShare('${a.url}', '${a.title.replace(/'/g, "\\'")}')">SHARE</button>
+                        <span><span class="pulse"></span> LIVE</span>
+                    </div>
+                </div>
             </div>
         `).join('');
         grid.style.opacity = "1";
-    } catch (e) {}
+        updateBriefing();
+    } catch (e) { console.error(e); }
   }
 
   function switchCategory(cat) {
