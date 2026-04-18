@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PULSE — Real-Time News Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
     :root { 
         --bg: #050505; 
@@ -55,7 +57,6 @@
     .card-summary { font-size: 0.95rem; color: #aaa; line-height: 1.8; margin-bottom: 2.5rem; font-weight: 300; }
     .card-meta { margin-top: auto; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #666; display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 1.5rem; align-items: center; }
     
-    /* NEW GOLDEN SHARE BUTTON */
     .share-btn { 
         background: none; border: none; color: var(--accent); 
         font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; 
@@ -73,9 +74,58 @@
         background: rgba(5, 5, 5, 0.98); backdrop-filter: blur(15px); z-index: 3000;
         padding: 2rem; flex-direction: column;
     }
-    .map-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
-    .map-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; position: relative; overflow: auto; }
-    .map-maintenance { text-align: center; color: var(--muted); font-family: 'IBM Plex Mono'; }
+    .map-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
+    .map-container { flex-grow: 1; position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; min-height: 400px; }
+
+    /* Leaflet map dark overrides */
+    #riskMap { width: 100%; height: 100%; min-height: 500px; background: #0a0a0a; }
+    .leaflet-container { background: #0d0d0d !important; }
+    .leaflet-tile { filter: brightness(0.25) saturate(0.3) hue-rotate(180deg); }
+
+    /* Risk legend */
+    .map-legend {
+        display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .legend-dot.critical { background: #ff2d2d; box-shadow: 0 0 8px #ff2d2d; }
+    .legend-dot.high { background: #e8c547; box-shadow: 0 0 8px #e8c547; }
+    .legend-dot.low { background: #2dff7a; box-shadow: 0 0 8px #2dff7a; }
+    .legend-dot.none { background: #444; }
+
+    /* Map loading state */
+    .map-loading {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted);
+        text-transform: uppercase; letter-spacing: 2px; z-index: 10;
+    }
+
+    /* Custom Leaflet tooltip overrides */
+    .risk-tooltip {
+        background: rgba(5, 5, 5, 0.95) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 6px !important;
+        color: #fff !important;
+        font-family: 'IBM Plex Mono', monospace !important;
+        font-size: 0.7rem !important;
+        padding: 10px 14px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.8) !important;
+        white-space: nowrap;
+    }
+    .risk-tooltip::before { display: none !important; }
+    .tooltip-country { font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #fff; }
+    .tooltip-level { text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; }
+    .tooltip-level.critical { color: #ff2d2d; }
+    .tooltip-level.high { color: #e8c547; }
+    .tooltip-level.low { color: #2dff7a; }
+    .tooltip-level.none { color: #666; }
+
+    /* Live badge */
+    .live-badge {
+        color: var(--accent); font-family: 'IBM Plex Mono'; font-size: 0.7rem;
+        border: 1px solid var(--accent); padding: 5px 15px; border-radius: 4px;
+        animation: pulse-anim 2s infinite; display: flex; align-items: center; gap: 6px;
+    }
 
     .share-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 2000; justify-content: center; align-items: center; }
     .share-menu { background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; width: 340px; text-align: center; }
@@ -103,19 +153,24 @@
 
 <main><div class="grid" id="newsGrid"></div></main>
 
+<!-- GLOBAL RISK MAP MODAL -->
 <div class="map-overlay" id="mapOverlay">
     <div class="map-header">
         <div class="logo">PULSE<span>.</span> RISK MAP</div>
-        <div style="color: var(--accent); font-family: 'IBM Plex Mono'; font-size: 0.7rem; border: 1px solid var(--accent); padding: 5px 15px; border-radius: 4px; animation: pulse-anim 2s infinite;">
-            SYSTEM UNDER MAINTENANCE — LIVE DATA OFFLINE
+        <div class="map-legend">
+            <div class="legend-item"><div class="legend-dot critical"></div> Critical</div>
+            <div class="legend-item"><div class="legend-dot high"></div> High</div>
+            <div class="legend-item"><div class="legend-dot low"></div> Low</div>
+            <div class="legend-item"><div class="legend-dot none"></div> No Data</div>
+        </div>
+        <div class="live-badge">
+            <span class="pulse"></span> LIVE INTELLIGENCE
         </div>
         <button class="cat-btn" onclick="closeMap()" style="color: #fff;">[ ESC ] CLOSE</button>
     </div>
-    <div class="map-container" id="injectedMap">
-        <div class="map-maintenance">
-            <h2 style="color: var(--accent); margin-bottom: 10px; font-family: 'Playfair Display';">MAP OFFLINE</h2>
-            <p style="font-size: 0.8rem; letter-spacing: 1px;">GEOSPATIAL RISK INTELLIGENCE IS UNDERGOING UPDATES.</p>
-        </div>
+    <div class="map-container" id="mapContainer">
+        <div class="map-loading" id="mapLoading">LOADING GEOSPATIAL INTELLIGENCE...</div>
+        <div id="riskMap"></div>
     </div>
 </div>
 
@@ -132,15 +187,36 @@
     </div>
 </div>
 
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
 <script>
   const CATEGORIES = {{ categories | tojson }};
   let activeCategory = "Pakistan";
   let currentShareUrl = "";
+  let riskMap = null;
+  let mapInitialized = false;
 
+  // ── RISK COLOR CONFIG ──
+  const RISK_CONFIG = {
+    critical: { color: '#ff2d2d', fillColor: '#ff2d2d', fillOpacity: 0.75, radius: 28000, pulseColor: 'rgba(255,45,45,0.25)' },
+    high:     { color: '#e8c547', fillColor: '#e8c547', fillOpacity: 0.65, radius: 22000, pulseColor: 'rgba(232,197,71,0.2)' },
+    low:      { color: '#2dff7a', fillColor: '#2dff7a', fillOpacity: 0.5,  radius: 16000, pulseColor: 'rgba(45,255,122,0.15)' },
+    none:     { color: '#444444', fillColor: '#333333', fillOpacity: 0.35, radius: 10000, pulseColor: 'rgba(68,68,68,0.1)' }
+  };
+
+  function getRiskConfig(level) {
+    return RISK_CONFIG[level] || RISK_CONFIG.none;
+  }
+
+  // ── WORLD CLOCK ──
   function updateWorldClock() {
     const zones = [
-        { label: 'Islamabad', zone: 'Asia/Karachi' }, { label: 'London', zone: 'Europe/London' },
-        { label: 'New York', zone: 'America/New_York' }, { label: 'Tokyo', zone: 'Asia/Tokyo' }, { label: 'Dubai', zone: 'Asia/Dubai' }
+        { label: 'Islamabad', zone: 'Asia/Karachi' },
+        { label: 'London', zone: 'Europe/London' },
+        { label: 'New York', zone: 'America/New_York' },
+        { label: 'Tokyo', zone: 'Asia/Tokyo' },
+        { label: 'Dubai', zone: 'Asia/Dubai' }
     ];
     const now = new Date();
     document.getElementById('timeStrip').innerHTML = zones.map(z => {
@@ -157,33 +233,119 @@
     } catch(e) {}
   }
 
-  function init() {
-    updateWorldClock();
-    setInterval(updateWorldClock, 60000);
-    setInterval(updateBriefing, 30000);
-    
-    const nav = document.getElementById('catNav');
-    CATEGORIES.forEach(cat => {
-      const btn = document.createElement('button');
-      btn.className = `cat-btn ${cat === activeCategory ? 'active' : ''}`;
-      btn.innerText = cat;
-      btn.onclick = () => switchCategory(cat);
-      nav.appendChild(btn);
-    });
-    
-    const mapBtn = document.createElement('button');
-    mapBtn.className = 'cat-btn';
-    mapBtn.style.color = 'var(--accent)';
-    mapBtn.innerHTML = 'GLOBAL MAP';
-    mapBtn.onclick = openGlobalMap;
-    nav.appendChild(mapBtn);
+  // ── MAP ──
+  function initMap() {
+    if (mapInitialized) return;
+    mapInitialized = true;
 
-    loadContent();
+    riskMap = L.map('riskMap', {
+      center: [20, 10],
+      zoom: 2,
+      zoomControl: true,
+      attributionControl: false,
+      minZoom: 1,
+      maxZoom: 6
+    });
+
+    // Dark tile layer (CartoDB dark matter)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd',
+      maxZoom: 20
+    }).addTo(riskMap);
+
+    // Subtle label layer on top
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd',
+      maxZoom: 20,
+      opacity: 0.4
+    }).addTo(riskMap);
   }
 
-  function openGlobalMap() { document.getElementById('mapOverlay').style.display = 'flex'; }
-  function closeMap() { document.getElementById('mapOverlay').style.display = 'none'; }
+  async function loadRiskData() {
+    document.getElementById('mapLoading').style.display = 'block';
+    try {
+      const res = await fetch('/api/risk');
+      const data = await res.json();
 
+      if (!data.success) return;
+
+      // Clear old layers
+      riskMap.eachLayer(layer => {
+        if (layer._isRiskMarker) riskMap.removeLayer(layer);
+      });
+
+      const risk = data.risk;
+
+      Object.entries(risk).forEach(([country, info]) => {
+        const level = typeof info === 'object' ? info.level : info;
+        const coords = typeof info === 'object' ? info.coords : null;
+        if (!coords || coords[0] === 0) return;
+
+        const cfg = getRiskConfig(level);
+
+        // Outer pulse ring
+        const pulse = L.circle(coords, {
+          radius: cfg.radius * 2.2,
+          color: 'transparent',
+          fillColor: cfg.pulseColor,
+          fillOpacity: 1,
+          weight: 0
+        }).addTo(riskMap);
+        pulse._isRiskMarker = true;
+
+        // Main circle marker
+        const circle = L.circle(coords, {
+          radius: cfg.radius,
+          color: cfg.color,
+          fillColor: cfg.fillColor,
+          fillOpacity: cfg.fillOpacity,
+          weight: 1.5,
+          opacity: 0.9
+        }).addTo(riskMap);
+        circle._isRiskMarker = true;
+
+        // Hover tooltip
+        const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
+        const tooltipHtml = `
+          <div class="tooltip-country">${country}</div>
+          <div class="tooltip-level ${level}">▲ ${levelLabel} Risk</div>
+        `;
+
+        circle.bindTooltip(tooltipHtml, {
+          className: 'risk-tooltip',
+          permanent: false,
+          direction: 'top',
+          offset: [0, -8]
+        });
+
+        circle.on('mouseover', function() { this.openTooltip(); });
+        circle.on('mouseout', function() { this.closeTooltip(); });
+      });
+
+      document.getElementById('mapLoading').style.display = 'none';
+    } catch(e) {
+      document.getElementById('mapLoading').innerText = 'FAILED TO LOAD RISK DATA';
+    }
+  }
+
+  function openGlobalMap() {
+    document.getElementById('mapOverlay').style.display = 'flex';
+    // Small delay so the container is visible before Leaflet renders
+    setTimeout(() => {
+      initMap();
+      riskMap.invalidateSize();
+      loadRiskData();
+    }, 100);
+  }
+
+  function closeMap() {
+    document.getElementById('mapOverlay').style.display = 'none';
+  }
+
+  // Close map on ESC key
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMap(); });
+
+  // ── SHARE ──
   function openShare(url, title) {
     currentShareUrl = url;
     document.getElementById('shareX').href = `https://x.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
@@ -192,6 +354,7 @@
   function closeShare() { document.getElementById('shareOverlay').style.display = 'none'; }
   function copyToClipboard() { navigator.clipboard.writeText(currentShareUrl); alert("LINK COPIED"); closeShare(); }
 
+  // ── NEWS ──
   async function loadContent(query = "") {
     const grid = document.getElementById('newsGrid');
     grid.style.opacity = "0.3";
@@ -225,6 +388,32 @@
   }
 
   function searchNews() { loadContent(document.getElementById('searchInput').value); }
+
+  // ── INIT ──
+  function init() {
+    updateWorldClock();
+    setInterval(updateWorldClock, 60000);
+    setInterval(updateBriefing, 30000);
+    
+    const nav = document.getElementById('catNav');
+    CATEGORIES.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = `cat-btn ${cat === activeCategory ? 'active' : ''}`;
+      btn.innerText = cat;
+      btn.onclick = () => switchCategory(cat);
+      nav.appendChild(btn);
+    });
+    
+    const mapBtn = document.createElement('button');
+    mapBtn.className = 'cat-btn';
+    mapBtn.style.color = 'var(--accent)';
+    mapBtn.innerHTML = 'GLOBAL MAP';
+    mapBtn.onclick = openGlobalMap;
+    nav.appendChild(mapBtn);
+
+    loadContent();
+  }
+
   window.onload = init;
 </script>
 </body>
