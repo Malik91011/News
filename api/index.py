@@ -159,43 +159,79 @@ def get_live_headlines(category, query=None):
              "source_label": getattr(e, "_src", category)} for e in unique[:12]]
 
 
+# ─── KEYWORD-BASED LOCAL ANALYSIS (no API needed) ────────────
+
+RISK_WORDS   = {"war","attack","bomb","conflict","killed","explosion","crisis",
+                "terror","missile","troops","invasion","airstrike","coup",
+                "violence","shooting","nuclear","sanctions","arrested"}
+ECON_WORDS   = {"economy","inflation","stock","market","trade","gdp","deficit",
+                "recession","currency","oil","gas","price","rate","debt","tax"}
+HEALTH_WORDS = {"disease","outbreak","virus","pandemic","hospital","death",
+                "health","medical","vaccine","drug","infection","casualties"}
+TECH_WORDS   = {"ai","tech","cyber","hack","data","software","startup","robot",
+                "space","satellite","launch","digital","electric","energy"}
+
+def local_analyze(title):
+    """Generate assessment + precaution from headline keywords — zero API calls."""
+    t = title.lower()
+
+    if any(w in t for w in RISK_WORDS):
+        assessment = "This event carries potential for regional or international escalation and warrants close monitoring."
+        precaution = "Avoid the affected region if possible and follow official government travel advisories."
+    elif any(w in t for w in ECON_WORDS):
+        assessment = "Economic developments of this nature can have downstream effects on markets, trade, and consumer prices."
+        precaution = "Review any exposure to affected markets or currencies and consult a financial advisor if needed."
+    elif any(w in t for w in HEALTH_WORDS):
+        assessment = "Health-related developments require timely public awareness and coordinated institutional response."
+        precaution = "Follow guidance from local health authorities and avoid crowded areas if an outbreak is indicated."
+    elif any(w in t for w in TECH_WORDS):
+        assessment = "Technological shifts of this kind can rapidly reshape industries, privacy norms, and national security postures."
+        precaution = "Stay informed about implications for data privacy and infrastructure security in your region."
+    else:
+        assessment = "The situation is developing and its full impact remains to be assessed by relevant authorities."
+        precaution = "Monitor reputable news sources for updates and avoid sharing unverified information."
+
+    return assessment, precaution
+
+
 def summarize_with_ai(headlines, category):
-    """One Gemini call for all headlines — cached for 5 min to avoid rate limits."""
+    """Try Gemini once; if rate-limited fall back to local keyword analysis instantly."""
     if not headlines:
         return []
 
-    # Return cached result if fresh
     cache_key = f"news_{category}"
     cached = cache_get(cache_key)
     if cached:
-        logger.info(f"Cache HIT for {cache_key}")
+        logger.info(f"Cache HIT: {cache_key}")
         return cached
 
-    # Build minimal input list
-    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
+    def build_result(h, summary=None, assessment=None, precaution=None):
+        a, p = local_analyze(h["title"])
+        return {
+            "title":      h["title"],
+            "summary":    summary or h["title"],
+            "assessment": assessment or a,
+            "precaution": precaution or p,
+            "url":        h["link"],
+            "source":     h.get("source_label", category),
+            "category":   category,
+            "time":       h["published"],
+        }
 
+    # Try Gemini with a compact prompt
+    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
     prompt = (
-        "You are a news analyst. For each item return a JSON array. "
-        "Each object: i (copy number), s (summary: 1 sentence what happened), "
-        "a (assessment: 1 sentence significance), p (precaution: 1 sentence advice). "
-        "Be concise. Return ONLY a JSON array, no markdown, no backticks.\n\n"
+        "News analyst. Return a JSON array — one object per item. "
+        "Keys: i (copy), s (1-sentence summary), a (1-sentence assessment), p (1-sentence precaution). "
+        "No markdown. Start with [\n\n"
         + json.dumps(items)
     )
 
-    fallback = [{
-        "title": h["title"], "summary": h["title"],
-        "assessment": "Monitoring as situation develops.",
-        "precaution": "Follow credible sources for updates.",
-        "url": h["link"], "source": h.get("source_label", category),
-        "category": category, "time": h["published"],
-    } for h in headlines]
-
     try:
-        text = gemini(prompt, temperature=0.2)
-        logger.info(f"Gemini batch OK, response: {text[:150]}")
+        raw = gemini(prompt, temperature=0.2)
+        logger.info(f"Gemini OK: {raw[:120]}")
 
-        # Strip fences
-        text = text.strip()
+        text = raw.strip()
         if "```" in text:
             for part in text.split("```"):
                 part = part.strip().lstrip("json").strip()
@@ -207,28 +243,27 @@ def summarize_with_ai(headlines, category):
             text = text[s:e]
 
         parsed = json.loads(text)
+        idx_map = {obj.get("i", ix): obj for ix, obj in enumerate(parsed)}
 
-        # Map back using index i
-        index_map = {obj.get("i", idx): obj for idx, obj in enumerate(parsed)}
         results = []
         for i, h in enumerate(headlines):
-            obj = index_map.get(i, {})
-            results.append({
-                "title":      h["title"],
-                "summary":    obj.get("s") or h["title"],
-                "assessment": obj.get("a") or "Monitoring situation.",
-                "precaution": obj.get("p") or "Follow credible sources.",
-                "url":        h["link"],
-                "source":     h.get("source_label", category),
-                "category":   category,
-                "time":       h["published"],
-            })
+            obj = idx_map.get(i, {})
+            results.append(build_result(
+                h,
+                summary    = obj.get("s"),
+                assessment = obj.get("a"),
+                precaution = obj.get("p"),
+            ))
         cache_set(cache_key, results)
+        logger.info(f"Gemini results cached for {cache_key}")
         return results
 
     except Exception as ex:
-        logger.error(f"summarize_with_ai FAILED: {ex} | raw: {text[:200] if 'text' in dir() else 'N/A'}")
-        return fallback
+        logger.warning(f"Gemini unavailable ({ex}), using local analysis")
+        # Local analysis: no API, instant, always works
+        results = [build_result(h) for h in headlines]
+        cache_set(cache_key, results)   # cache local results too
+        return results
 
 
 
