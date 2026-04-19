@@ -228,7 +228,7 @@ def task_summarize_articles(headlines):
 
 # ── TASK 2: ASSESSMENT → DEEPSEEK ────────────────────────────
 def task_assess_articles(headlines):
-    """DEEPSEEK: structured reasoning — importance, impact, bias per article."""
+    """GROQ primary → DeepSeek → Gemini for structured assessment."""
     items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
     prompt = (
         "You are a news intelligence analyst. For each headline provide a structured assessment. "
@@ -240,67 +240,60 @@ def task_assess_articles(headlines):
         "No markdown. Return only the JSON array starting with [\n\n"
         + json.dumps(items)
     )
-    try:
-        raw = call_deepseek(prompt, temperature=0.2, max_tokens=1000)
-        parsed = extract_json_array(raw)
-        return {obj.get("i", ix): obj for ix, obj in enumerate(parsed)}
-    except Exception as e:
-        logger.warning(f"DeepSeek assess failed: {e} — falling back to GROQ")
+    for fn, name in [(call_groq, "GROQ"), (call_deepseek, "DeepSeek"), (call_gemini, "Gemini")]:
         try:
-            raw = call_groq(prompt, temperature=0.2, max_tokens=1000)
+            raw = fn(prompt, temperature=0.2, max_tokens=1000)
             parsed = extract_json_array(raw)
+            logger.info(f"Assessment via {name}")
             return {obj.get("i", ix): obj for ix, obj in enumerate(parsed)}
-        except Exception as e2:
-            logger.warning(f"GROQ assess fallback failed: {e2}")
-            return {}
+        except Exception as e:
+            logger.warning(f"{name} assess failed: {e}")
+    return {}
 
 
 # ── TASK 3: ADVISORY → GEMINI ────────────────────────────────
 def task_advisory_articles(headlines):
-    """GEMINI: actionable, responsible advisory per article."""
+    """GROQ primary → Gemini → DeepSeek for per-article advisories."""
     items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
     prompt = (
-        "You are a responsible news advisor providing actionable guidance. "
+        "You are a responsible news advisor. "
         "For each headline write a 1-sentence practical advisory for the reader. "
-        "Be neutral, factual, and helpful. No sensationalism. "
+        "Be neutral, factual, helpful. No sensationalism. "
         "Return a JSON array. Each object: i (copy number), p (1-sentence advisory). "
         "No markdown. Start with [\n\n" + json.dumps(items)
     )
-    try:
-        raw = call_gemini(prompt, temperature=0.3, max_tokens=800)
-        parsed = extract_json_array(raw)
-        return {obj.get("i", ix): obj.get("p", "") for ix, obj in enumerate(parsed)}
-    except Exception as e:
-        logger.warning(f"Gemini advisory failed: {e} — falling back to DeepSeek")
+    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek")]:
         try:
-            raw = call_deepseek(prompt, temperature=0.3, max_tokens=800)
+            raw = fn(prompt, temperature=0.3, max_tokens=800)
             parsed = extract_json_array(raw)
+            logger.info(f"Advisory via {name}")
             return {obj.get("i", ix): obj.get("p", "") for ix, obj in enumerate(parsed)}
-        except Exception as e2:
-            logger.warning(f"DeepSeek advisory fallback failed: {e2}")
-            return {}
+        except Exception as e:
+            logger.warning(f"{name} advisory failed: {e}")
+    return {}
 
 
 # ── TASK 4: OVERALL SUMMARY → GEMINI ─────────────────────────
 def task_overall_summary(headlines):
-    """GEMINI: cross-article synthesis for status bar."""
+    """GROQ primary → Gemini → DeepSeek → local fallback for status bar."""
     titles = [h["title"] for h in headlines[:12]]
+    if not titles:
+        return "Intelligence feed synchronized."
     prompt = (
         "You are a world news anchor. Based on these headlines, write ONE sharp factual "
         "25-word sentence summarizing the most important global story right now. "
-        "Be specific. No filler phrases.\n\nHeadlines:\n" + "\n".join(titles)
+        "Be specific. No filler phrases. Return only the sentence, nothing else.\n\n"
+        "Headlines:\n" + "\n".join(titles)
     )
-    try:
-        text = call_gemini(prompt, temperature=0.3, max_tokens=100)
-        return text.strip().strip('"').strip("'")
-    except Exception as e:
-        logger.warning(f"Gemini overall summary failed: {e} — trying DeepSeek")
+    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek")]:
         try:
-            text = call_deepseek(prompt, temperature=0.3, max_tokens=100)
+            text = fn(prompt, temperature=0.3, max_tokens=120)
+            logger.info(f"Overall summary via {name}")
             return text.strip().strip('"').strip("'")
-        except Exception as e2:
-            logger.warning(f"DeepSeek overall summary fallback failed: {e2}")
-            return titles[0] if titles else "Intelligence feed synchronized."
+        except Exception as e:
+            logger.warning(f"{name} overall summary failed: {e}")
+    # All APIs failed — build a meaningful local summary from top headline
+    return titles[0] if titles else "Intelligence feed synchronized."
 
 
 # ── MAIN ORCHESTRATOR ─────────────────────────────────────────
