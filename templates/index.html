@@ -59,6 +59,10 @@
     .card-intel-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 3px; }
     .card-intel-label.assessment { color: #e8c547; }
     .card-intel-label.precaution { color: #ff7b7b; }
+    .importance-badge { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 2px 7px; border-radius: 3px; margin-bottom: 1rem; }
+    .importance-badge.high { background: rgba(255,45,45,0.15); color: #ff6b6b; border: 1px solid rgba(255,45,45,0.3); }
+    .importance-badge.medium { background: rgba(232,197,71,0.15); color: #e8c547; border: 1px solid rgba(232,197,71,0.3); }
+    .importance-badge.low { background: rgba(80,80,80,0.2); color: #888; border: 1px solid rgba(120,120,120,0.3); }
     .card-intel-text { font-size: 0.82rem; color: #999; line-height: 1.6; font-weight: 300; }
     .card-meta { margin-top: auto; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #666; display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 1.5rem; align-items: center; }
     
@@ -400,13 +404,14 @@
             <div class="card">
                 <a href="${a.url}" target="_blank" style="text-decoration:none; color:inherit;">
                     <div class="card-title">${a.title}</div>
+                    ${a.importance ? `<span class="importance-badge ${a.importance}">${a.importance} importance</span>` : ''}
                     <div class="card-summary">${a.summary || ''}</div>
                     <div class="card-intel">
                         <div class="card-intel-label assessment">▸ Assessment</div>
                         <div class="card-intel-text">${a.assessment || 'Situation under review.'}</div>
                     </div>
                     <div class="card-intel">
-                        <div class="card-intel-label precaution">⚠ Precaution</div>
+                        <div class="card-intel-label precaution">⚠ Advisory</div>
                         <div class="card-intel-text">${a.precaution || 'Monitor official sources.'}</div>
                     </div>
                 </a>
