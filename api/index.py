@@ -127,12 +127,14 @@ def call_openrouter(prompt, temperature=0.3, max_tokens=1024):
     """OPENROUTER — routes to multiple free models. Ultimate fallback."""
     if not OPENROUTER_API_KEY:
         raise ValueError("OPENROUTER_API_KEY not set")
-    # Free models on OpenRouter — tried in order
+    # Free models on OpenRouter — current working list April 2026
     models = [
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "mistralai/mistral-7b-instruct:free",
-        "google/gemma-3-12b-it:free",
-        "microsoft/phi-3-mini-128k-instruct:free",
+        "meta-llama/llama-4-scout:free",
+        "meta-llama/llama-4-maverick:free",
+        "google/gemma-3-27b-it:free",
+        "mistralai/mistral-small-3.1-24b-instruct:free",
+        "deepseek/deepseek-r1-zero:free",
+        "qwen/qwen3-8b:free",
     ]
     last_err = None
     for model in models:
