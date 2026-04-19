@@ -28,9 +28,10 @@ template_dir = os.path.join(base_dir, '../templates')
 app = Flask(__name__, template_folder=template_dir)
 
 # ─── API KEYS ────────────────────────────────────────────────
-GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "")
-GROQ_API_KEY    = os.environ.get("GROQ_API_KEY", "")
+GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
+GROQ_API_KEY     = os.environ.get("GROQ_API_KEY", "")
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # ═══════════════════════════════════════════════════════════════
 #  API LAYER — each function returns text or raises Exception
@@ -122,6 +123,51 @@ def call_gemini(prompt, temperature=0.3, max_tokens=2048):
     raise Exception(f"Gemini all models failed. Last: {last_err}")
 
 
+def call_openrouter(prompt, temperature=0.3, max_tokens=1024):
+    """OPENROUTER — routes to multiple free models. Ultimate fallback."""
+    if not OPENROUTER_API_KEY:
+        raise ValueError("OPENROUTER_API_KEY not set")
+    # Free models on OpenRouter — tried in order
+    models = [
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "mistralai/mistral-7b-instruct:free",
+        "google/gemma-3-12b-it:free",
+        "microsoft/phi-3-mini-128k-instruct:free",
+    ]
+    last_err = None
+    for model in models:
+        try:
+            resp = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://pulseai.vercel.app",
+                    "X-Title": "PulseAI News"
+                },
+                json={"model": model,
+                      "messages": [{"role": "user", "content": prompt}],
+                      "temperature": temperature, "max_tokens": max_tokens},
+                timeout=20
+            )
+            if resp.status_code == 429:
+                logger.warning(f"OpenRouter {model} 429, trying next")
+                last_err = 429
+                continue
+            if resp.status_code in (400, 404):
+                logger.warning(f"OpenRouter {model} {resp.status_code}, trying next")
+                continue
+            resp.raise_for_status()
+            text = resp.json()["choices"][0]["message"]["content"].strip()
+            logger.info(f"OpenRouter success: {model}")
+            return text
+        except Exception as e:
+            last_err = e
+            logger.warning(f"OpenRouter {model} failed: {e}")
+            continue
+    raise Exception(f"OpenRouter all models failed. Last: {last_err}")
+
+
 # ═══════════════════════════════════════════════════════════════
 #  ORCHESTRATION ENGINE
 # ═══════════════════════════════════════════════════════════════
@@ -201,29 +247,23 @@ def local_analyze(title):
 
 # ── TASK 1: PER-ARTICLE SUMMARY → GROQ ───────────────────────
 def task_summarize_articles(headlines):
-    """GROQ: fast bulk summarization of all articles."""
+    """GROQ → DeepSeek → Gemini → OpenRouter for bulk summarization."""
     items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
     prompt = (
         "You are a factual news summarizer. For each item write a 1-sentence factual summary. "
         "Return a JSON array. Each object: i (copy number), s (1-sentence summary). "
         "No markdown. Start with [\n\n" + json.dumps(items)
     )
-    try:
-        raw = call_groq(prompt, temperature=0.2, max_tokens=800)
-        parsed = extract_json_array(raw)
-        idx_map = {obj.get("i", ix): obj.get("s", "") for ix, obj in enumerate(parsed)}
-        return {i: idx_map.get(i, "") for i in range(len(headlines))}
-    except Exception as e:
-        logger.warning(f"GROQ summarize failed: {e} — falling back to DeepSeek")
-        # Fallback: DeepSeek
+    for fn, name in [(call_groq, "GROQ"), (call_deepseek, "DeepSeek"), (call_gemini, "Gemini"), (call_openrouter, "OpenRouter")]:
         try:
-            raw = call_deepseek(prompt, temperature=0.2, max_tokens=800)
+            raw = fn(prompt, temperature=0.2, max_tokens=800)
             parsed = extract_json_array(raw)
             idx_map = {obj.get("i", ix): obj.get("s", "") for ix, obj in enumerate(parsed)}
+            logger.info(f"Summarize via {name}")
             return {i: idx_map.get(i, "") for i in range(len(headlines))}
-        except Exception as e2:
-            logger.warning(f"DeepSeek summarize fallback also failed: {e2}")
-            return {}  # will use title as summary
+        except Exception as e:
+            logger.warning(f"{name} summarize failed: {e}")
+    return {}  # all failed — orchestrate() will use headline title
 
 
 # ── TASK 2: ASSESSMENT → DEEPSEEK ────────────────────────────
@@ -240,7 +280,7 @@ def task_assess_articles(headlines):
         "No markdown. Return only the JSON array starting with [\n\n"
         + json.dumps(items)
     )
-    for fn, name in [(call_groq, "GROQ"), (call_deepseek, "DeepSeek"), (call_gemini, "Gemini")]:
+    for fn, name in [(call_groq, "GROQ"), (call_deepseek, "DeepSeek"), (call_gemini, "Gemini"), (call_openrouter, "OpenRouter")]:
         try:
             raw = fn(prompt, temperature=0.2, max_tokens=1000)
             parsed = extract_json_array(raw)
@@ -262,7 +302,7 @@ def task_advisory_articles(headlines):
         "Return a JSON array. Each object: i (copy number), p (1-sentence advisory). "
         "No markdown. Start with [\n\n" + json.dumps(items)
     )
-    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek")]:
+    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek"), (call_openrouter, "OpenRouter")]:
         try:
             raw = fn(prompt, temperature=0.3, max_tokens=800)
             parsed = extract_json_array(raw)
@@ -285,14 +325,13 @@ def task_overall_summary(headlines):
         "Be specific. No filler phrases. Return only the sentence, nothing else.\n\n"
         "Headlines:\n" + "\n".join(titles)
     )
-    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek")]:
+    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek"), (call_openrouter, "OpenRouter")]:
         try:
             text = fn(prompt, temperature=0.3, max_tokens=120)
             logger.info(f"Overall summary via {name}")
             return text.strip().strip('"').strip("'")
         except Exception as e:
             logger.warning(f"{name} overall summary failed: {e}")
-    # All APIs failed — build a meaningful local summary from top headline
     return titles[0] if titles else "Intelligence feed synchronized."
 
 
