@@ -9,8 +9,8 @@ from flask import Flask, request, jsonify, render_template
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ─── SIMPLE IN-MEMORY CACHE ──────────────────────────────────
-_cache = {}   # key -> (timestamp, value)
+# ─── CACHE ───────────────────────────────────────────────────
+_cache = {}
 CACHE_TTL = 300  # 5 minutes
 
 def cache_get(key):
@@ -22,59 +22,350 @@ def cache_get(key):
 def cache_set(key, value):
     _cache[key] = (time.time(), value)
 
+# ─── APP ─────────────────────────────────────────────────────
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, '../templates')
 app = Flask(__name__, template_folder=template_dir)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-# Models tried in order — first success wins
-GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-2.5-flash",
-]
-GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+# ─── API KEYS ────────────────────────────────────────────────
+GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "")
+GROQ_API_KEY    = os.environ.get("GROQ_API_KEY", "")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 
-def gemini(prompt, temperature=0.3):
-    """Call Gemini REST API — one attempt per model, fail fast, no waits."""
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY not set")
+# ═══════════════════════════════════════════════════════════════
+#  API LAYER — each function returns text or raises Exception
+# ═══════════════════════════════════════════════════════════════
+
+def call_groq(prompt, temperature=0.3, max_tokens=1024):
+    """GROQ — ultra-fast, low cost. Used for per-article summaries."""
+    if not GROQ_API_KEY:
+        raise ValueError("GROQ_API_KEY not set")
+    models = ["llama-3.3-70b-versatile", "llama3-8b-8192", "mixtral-8x7b-32768"]
     last_err = None
-    for model in GEMINI_MODELS:
-        url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
+    for model in models:
         try:
             resp = requests.post(
-                url,
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": temperature, "maxOutputTokens": 2048}
-                },
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                         "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                      "temperature": temperature, "max_tokens": max_tokens},
+                timeout=15
+            )
+            if resp.status_code == 429:
+                logger.warning(f"GROQ {model} 429, trying next")
+                last_err = 429
+                continue
+            resp.raise_for_status()
+            text = resp.json()["choices"][0]["message"]["content"].strip()
+            logger.info(f"GROQ success: {model}")
+            return text
+        except Exception as e:
+            last_err = e
+            logger.warning(f"GROQ {model} failed: {e}")
+            continue
+    raise Exception(f"GROQ all models failed. Last: {last_err}")
+
+
+def call_deepseek(prompt, temperature=0.3, max_tokens=1024):
+    """DEEPSEEK — strong reasoning, cost-effective. Used for assessment/analysis."""
+    if not DEEPSEEK_API_KEY:
+        raise ValueError("DEEPSEEK_API_KEY not set")
+    try:
+        resp = requests.post(
+            "https://api.deepseek.com/chat/completions",
+            headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                     "Content-Type": "application/json"},
+            json={"model": "deepseek-chat",
+                  "messages": [{"role": "user", "content": prompt}],
+                  "temperature": temperature, "max_tokens": max_tokens},
+            timeout=20
+        )
+        if resp.status_code == 429:
+            raise Exception("DeepSeek 429 rate limited")
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["message"]["content"].strip()
+        logger.info("DeepSeek success")
+        return text
+    except Exception as e:
+        raise Exception(f"DeepSeek failed: {e}")
+
+
+def call_gemini(prompt, temperature=0.3, max_tokens=2048):
+    """GEMINI — best reasoning. Used for overall summary and advisories."""
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY not set")
+    base = "https://generativelanguage.googleapis.com/v1beta/models"
+    models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
+    last_err = None
+    for model in models:
+        try:
+            resp = requests.post(
+                f"{base}/{model}:generateContent?key={GEMINI_API_KEY}",
+                json={"contents": [{"parts": [{"text": prompt}]}],
+                      "generationConfig": {"temperature": temperature,
+                                           "maxOutputTokens": max_tokens}},
                 timeout=20
             )
             if resp.status_code in (404, 429):
-                logger.warning(f"Model {model} returned {resp.status_code}, trying next")
+                logger.warning(f"Gemini {model} {resp.status_code}, trying next")
                 last_err = resp.status_code
                 continue
             resp.raise_for_status()
-            data = resp.json()
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
             logger.info(f"Gemini success: {model}")
             return text.strip()
         except Exception as e:
             last_err = e
-            logger.warning(f"Model {model} failed: {e}")
+            logger.warning(f"Gemini {model} failed: {e}")
             continue
-    raise Exception(f"All Gemini models failed. Last: {last_err}")
+    raise Exception(f"Gemini all models failed. Last: {last_err}")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  ORCHESTRATION ENGINE
+# ═══════════════════════════════════════════════════════════════
+
+def extract_json_array(text):
+    text = text.strip()
+    if "```" in text:
+        for part in text.split("```"):
+            part = part.strip().lstrip("json").strip()
+            if part.startswith("["):
+                text = part
+                break
+    s, e = text.find("["), text.rfind("]") + 1
+    if s != -1 and e > s:
+        return json.loads(text[s:e])
+    raise ValueError("No JSON array found")
+
+
+def extract_json_object(text):
+    text = text.strip()
+    if "```" in text:
+        for part in text.split("```"):
+            part = part.strip().lstrip("json").strip()
+            if part.startswith("{"):
+                text = part
+                break
+    s, e = text.find("{"), text.rfind("}") + 1
+    if s != -1 and e > s:
+        return json.loads(text[s:e])
+    raise ValueError("No JSON object found")
+
+
+# ── LOCAL FALLBACK (no API) ───────────────────────────────────
+RISK_WORDS   = {"war","attack","bomb","conflict","killed","explosion","crisis",
+                "terror","missile","troops","invasion","airstrike","coup",
+                "violence","shooting","nuclear","sanctions","arrested"}
+ECON_WORDS   = {"economy","inflation","stock","market","trade","gdp","deficit",
+                "recession","currency","oil","gas","price","rate","debt","tax"}
+HEALTH_WORDS = {"disease","outbreak","virus","pandemic","hospital","death",
+                "health","medical","vaccine","drug","infection","casualties"}
+TECH_WORDS   = {"ai","tech","cyber","hack","data","software","startup","robot",
+                "space","satellite","launch","digital","electric","energy"}
+
+def local_analyze(title):
+    t = title.lower()
+    if any(w in t for w in RISK_WORDS):
+        return (
+            "This event carries potential for regional or international escalation.",
+            "high",
+            "Follow official government travel advisories and monitor situation closely."
+        )
+    elif any(w in t for w in ECON_WORDS):
+        return (
+            "Economic developments of this nature can affect markets and consumer prices.",
+            "medium",
+            "Review market exposure and consult a financial advisor if needed."
+        )
+    elif any(w in t for w in HEALTH_WORDS):
+        return (
+            "Health developments require timely public awareness and institutional response.",
+            "medium",
+            "Follow local health authority guidance and avoid crowded areas if indicated."
+        )
+    elif any(w in t for w in TECH_WORDS):
+        return (
+            "Technological shifts can rapidly reshape industries and security postures.",
+            "low",
+            "Stay informed about data privacy and infrastructure security implications."
+        )
+    else:
+        return (
+            "Situation is developing; full impact remains to be assessed by authorities.",
+            "low",
+            "Monitor reputable news sources and avoid sharing unverified information."
+        )
+
+
+# ── TASK 1: PER-ARTICLE SUMMARY → GROQ ───────────────────────
+def task_summarize_articles(headlines):
+    """GROQ: fast bulk summarization of all articles."""
+    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
+    prompt = (
+        "You are a factual news summarizer. For each item write a 1-sentence factual summary. "
+        "Return a JSON array. Each object: i (copy number), s (1-sentence summary). "
+        "No markdown. Start with [\n\n" + json.dumps(items)
+    )
+    try:
+        raw = call_groq(prompt, temperature=0.2, max_tokens=800)
+        parsed = extract_json_array(raw)
+        idx_map = {obj.get("i", ix): obj.get("s", "") for ix, obj in enumerate(parsed)}
+        return {i: idx_map.get(i, "") for i in range(len(headlines))}
+    except Exception as e:
+        logger.warning(f"GROQ summarize failed: {e} — falling back to DeepSeek")
+        # Fallback: DeepSeek
+        try:
+            raw = call_deepseek(prompt, temperature=0.2, max_tokens=800)
+            parsed = extract_json_array(raw)
+            idx_map = {obj.get("i", ix): obj.get("s", "") for ix, obj in enumerate(parsed)}
+            return {i: idx_map.get(i, "") for i in range(len(headlines))}
+        except Exception as e2:
+            logger.warning(f"DeepSeek summarize fallback also failed: {e2}")
+            return {}  # will use title as summary
+
+
+# ── TASK 2: ASSESSMENT → DEEPSEEK ────────────────────────────
+def task_assess_articles(headlines):
+    """DEEPSEEK: structured reasoning — importance, impact, bias per article."""
+    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
+    prompt = (
+        "You are a news intelligence analyst. For each headline provide a structured assessment. "
+        "Return a JSON array. Each object must have: "
+        "i (copy number), "
+        "importance (low|medium|high), "
+        "impact (1 sentence on potential consequences), "
+        "bias (neutral|slightly_left|slightly_right|unknown). "
+        "No markdown. Return only the JSON array starting with [\n\n"
+        + json.dumps(items)
+    )
+    try:
+        raw = call_deepseek(prompt, temperature=0.2, max_tokens=1000)
+        parsed = extract_json_array(raw)
+        return {obj.get("i", ix): obj for ix, obj in enumerate(parsed)}
+    except Exception as e:
+        logger.warning(f"DeepSeek assess failed: {e} — falling back to GROQ")
+        try:
+            raw = call_groq(prompt, temperature=0.2, max_tokens=1000)
+            parsed = extract_json_array(raw)
+            return {obj.get("i", ix): obj for ix, obj in enumerate(parsed)}
+        except Exception as e2:
+            logger.warning(f"GROQ assess fallback failed: {e2}")
+            return {}
+
+
+# ── TASK 3: ADVISORY → GEMINI ────────────────────────────────
+def task_advisory_articles(headlines):
+    """GEMINI: actionable, responsible advisory per article."""
+    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
+    prompt = (
+        "You are a responsible news advisor providing actionable guidance. "
+        "For each headline write a 1-sentence practical advisory for the reader. "
+        "Be neutral, factual, and helpful. No sensationalism. "
+        "Return a JSON array. Each object: i (copy number), p (1-sentence advisory). "
+        "No markdown. Start with [\n\n" + json.dumps(items)
+    )
+    try:
+        raw = call_gemini(prompt, temperature=0.3, max_tokens=800)
+        parsed = extract_json_array(raw)
+        return {obj.get("i", ix): obj.get("p", "") for ix, obj in enumerate(parsed)}
+    except Exception as e:
+        logger.warning(f"Gemini advisory failed: {e} — falling back to DeepSeek")
+        try:
+            raw = call_deepseek(prompt, temperature=0.3, max_tokens=800)
+            parsed = extract_json_array(raw)
+            return {obj.get("i", ix): obj.get("p", "") for ix, obj in enumerate(parsed)}
+        except Exception as e2:
+            logger.warning(f"DeepSeek advisory fallback failed: {e2}")
+            return {}
+
+
+# ── TASK 4: OVERALL SUMMARY → GEMINI ─────────────────────────
+def task_overall_summary(headlines):
+    """GEMINI: cross-article synthesis for status bar."""
+    titles = [h["title"] for h in headlines[:12]]
+    prompt = (
+        "You are a world news anchor. Based on these headlines, write ONE sharp factual "
+        "25-word sentence summarizing the most important global story right now. "
+        "Be specific. No filler phrases.\n\nHeadlines:\n" + "\n".join(titles)
+    )
+    try:
+        text = call_gemini(prompt, temperature=0.3, max_tokens=100)
+        return text.strip().strip('"').strip("'")
+    except Exception as e:
+        logger.warning(f"Gemini overall summary failed: {e} — trying DeepSeek")
+        try:
+            text = call_deepseek(prompt, temperature=0.3, max_tokens=100)
+            return text.strip().strip('"').strip("'")
+        except Exception as e2:
+            logger.warning(f"DeepSeek overall summary fallback failed: {e2}")
+            return titles[0] if titles else "Intelligence feed synchronized."
+
+
+# ── MAIN ORCHESTRATOR ─────────────────────────────────────────
+def orchestrate(headlines, category):
+    """
+    Dispatch tasks to the right APIs in parallel-ish order.
+    Returns list of fully enriched article dicts.
+    """
+    if not headlines:
+        return []
+
+    cache_key = f"news_{category}"
+    cached = cache_get(cache_key)
+    if cached:
+        logger.info(f"Cache HIT: {cache_key}")
+        return cached
+
+    n = len(headlines)
+    logger.info(f"Orchestrating {n} articles for category: {category}")
+
+    # Fire all three tasks — each handles its own fallback
+    summaries   = task_summarize_articles(headlines)   # GROQ
+    assessments = task_assess_articles(headlines)       # DEEPSEEK
+    advisories  = task_advisory_articles(headlines)     # GEMINI
+
+    results = []
+    for i, h in enumerate(headlines):
+        local_assess, local_importance, local_advisory = local_analyze(h["title"])
+
+        assessment_obj = assessments.get(i, {})
+        importance = assessment_obj.get("importance", local_importance)
+        impact     = assessment_obj.get("impact", local_assess)
+        bias       = assessment_obj.get("bias", "unknown")
+
+        # Build assessment display text
+        assessment_text = impact
+        if bias not in ("unknown", "neutral", ""):
+            assessment_text += f" (Framing: {bias.replace('_', ' ')})"
+
+        results.append({
+            "title":      h["title"],
+            "summary":    summaries.get(i) or h["title"],
+            "assessment": assessment_text or local_assess,
+            "precaution": advisories.get(i) or local_advisory,
+            "importance": importance,
+            "url":        h["link"],
+            "source":     h.get("source_label", category),
+            "category":   category,
+            "time":       h["published"],
+        })
+
+    cache_set(cache_key, results)
+    logger.info(f"Orchestration complete for {category}, cached.")
+    return results
+
 
 # ─── RSS FEEDS ────────────────────────────────────────────────
 
 RSS_FEEDS = {
-    "Pakistan": None,
-    "World":    "https://www.aljazeera.com/xml/rss/all.xml",
-    "Politics": "https://tribune.com.pk/feed/pakistan",
+    "Pakistan":   None,
+    "World":      "https://www.aljazeera.com/xml/rss/all.xml",
+    "Politics":   "https://tribune.com.pk/feed/pakistan",
     "Technology": "https://feeds.bbci.co.uk/news/technology/rss.xml",
-    "Business": "https://www.dawn.com/feeds/business",
-    "Sports":   None,
+    "Business":   "https://www.dawn.com/feeds/business",
+    "Sports":     None,
 }
 
 PAKISTAN_FEEDS = [
@@ -99,8 +390,6 @@ RISK_FEEDS = [
     "https://tribune.com.pk/feed/home",
 ]
 
-# ─── NEWS ─────────────────────────────────────────────────────
-
 def fetch_feed_safe(url):
     try:
         return feedparser.parse(url).entries
@@ -118,7 +407,6 @@ def get_live_headlines(category, query=None):
             for e in entries:
                 e["_src"] = src
             all_entries.extend(entries)
-
     elif category == "Sports":
         sports_kw = ["sport","cricket","football","soccer","tennis","psl","fifa",
                      "olympic","match","league","cup","hockey","rugby","golf",
@@ -156,159 +444,51 @@ def get_live_headlines(category, query=None):
 
     return [{"title": e.title, "link": e.link,
              "published": e.get("published", "Just Now"),
-             "source_label": getattr(e, "_src", category)} for e in unique[:12]]
-
-
-# ─── KEYWORD-BASED LOCAL ANALYSIS (no API needed) ────────────
-
-RISK_WORDS   = {"war","attack","bomb","conflict","killed","explosion","crisis",
-                "terror","missile","troops","invasion","airstrike","coup",
-                "violence","shooting","nuclear","sanctions","arrested"}
-ECON_WORDS   = {"economy","inflation","stock","market","trade","gdp","deficit",
-                "recession","currency","oil","gas","price","rate","debt","tax"}
-HEALTH_WORDS = {"disease","outbreak","virus","pandemic","hospital","death",
-                "health","medical","vaccine","drug","infection","casualties"}
-TECH_WORDS   = {"ai","tech","cyber","hack","data","software","startup","robot",
-                "space","satellite","launch","digital","electric","energy"}
-
-def local_analyze(title):
-    """Generate assessment + precaution from headline keywords — zero API calls."""
-    t = title.lower()
-
-    if any(w in t for w in RISK_WORDS):
-        assessment = "This event carries potential for regional or international escalation and warrants close monitoring."
-        precaution = "Avoid the affected region if possible and follow official government travel advisories."
-    elif any(w in t for w in ECON_WORDS):
-        assessment = "Economic developments of this nature can have downstream effects on markets, trade, and consumer prices."
-        precaution = "Review any exposure to affected markets or currencies and consult a financial advisor if needed."
-    elif any(w in t for w in HEALTH_WORDS):
-        assessment = "Health-related developments require timely public awareness and coordinated institutional response."
-        precaution = "Follow guidance from local health authorities and avoid crowded areas if an outbreak is indicated."
-    elif any(w in t for w in TECH_WORDS):
-        assessment = "Technological shifts of this kind can rapidly reshape industries, privacy norms, and national security postures."
-        precaution = "Stay informed about implications for data privacy and infrastructure security in your region."
-    else:
-        assessment = "The situation is developing and its full impact remains to be assessed by relevant authorities."
-        precaution = "Monitor reputable news sources for updates and avoid sharing unverified information."
-
-    return assessment, precaution
-
-
-def summarize_with_ai(headlines, category):
-    """Try Gemini once; if rate-limited fall back to local keyword analysis instantly."""
-    if not headlines:
-        return []
-
-    cache_key = f"news_{category}"
-    cached = cache_get(cache_key)
-    if cached:
-        logger.info(f"Cache HIT: {cache_key}")
-        return cached
-
-    def build_result(h, summary=None, assessment=None, precaution=None):
-        a, p = local_analyze(h["title"])
-        return {
-            "title":      h["title"],
-            "summary":    summary or h["title"],
-            "assessment": assessment or a,
-            "precaution": precaution or p,
-            "url":        h["link"],
-            "source":     h.get("source_label", category),
-            "category":   category,
-            "time":       h["published"],
-        }
-
-    # Try Gemini with a compact prompt
-    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
-    prompt = (
-        "News analyst. Return a JSON array — one object per item. "
-        "Keys: i (copy), s (1-sentence summary), a (1-sentence assessment), p (1-sentence precaution). "
-        "No markdown. Start with [\n\n"
-        + json.dumps(items)
-    )
-
-    try:
-        raw = gemini(prompt, temperature=0.2)
-        logger.info(f"Gemini OK: {raw[:120]}")
-
-        text = raw.strip()
-        if "```" in text:
-            for part in text.split("```"):
-                part = part.strip().lstrip("json").strip()
-                if part.startswith("["):
-                    text = part
-                    break
-        s, e = text.find("["), text.rfind("]") + 1
-        if s != -1 and e > s:
-            text = text[s:e]
-
-        parsed = json.loads(text)
-        idx_map = {obj.get("i", ix): obj for ix, obj in enumerate(parsed)}
-
-        results = []
-        for i, h in enumerate(headlines):
-            obj = idx_map.get(i, {})
-            results.append(build_result(
-                h,
-                summary    = obj.get("s"),
-                assessment = obj.get("a"),
-                precaution = obj.get("p"),
-            ))
-        cache_set(cache_key, results)
-        logger.info(f"Gemini results cached for {cache_key}")
-        return results
-
-    except Exception as ex:
-        logger.warning(f"Gemini unavailable ({ex}), using local analysis")
-        # Local analysis: no API, instant, always works
-        results = [build_result(h) for h in headlines]
-        cache_set(cache_key, results)   # cache local results too
-        return results
-
+             "source_label": getattr(e, "_src", category)} for e in unique[:8]]
 
 
 # ─── RISK ENGINE ─────────────────────────────────────────────
 
 COUNTRY_KEYWORDS = {
-    "Pakistan":     ["pakistan","islamabad","karachi","lahore","peshawar"],
-    "India":        ["india","indian","delhi","mumbai","modi","new delhi"],
-    "China":        ["china","chinese","beijing","shanghai","xi jinping"],
-    "Japan":        ["japan","japanese","tokyo","osaka"],
-    "South Korea":  ["south korea","korean","seoul"],
-    "North Korea":  ["north korea","pyongyang","kim jong"],
-    "Afghanistan":  ["afghanistan","afghan","kabul","taliban"],
-    "Iran":         ["iran","iranian","tehran","khamenei"],
-    "Israel":       ["israel","israeli","tel aviv","netanyahu","gaza","west bank"],
-    "Saudi Arabia": ["saudi","saudi arabia","riyadh"],
-    "Turkey":       ["turkey","turkish","ankara","erdogan"],
-    "Iraq":         ["iraq","iraqi","baghdad"],
-    "Syria":        ["syria","syrian","damascus"],
-    "Yemen":        ["yemen","yemeni","houthi"],
-    "Lebanon":      ["lebanon","lebanese","beirut","hezbollah"],
-    "Russia":       ["russia","russian","moscow","putin","kremlin"],
-    "Ukraine":      ["ukraine","ukrainian","kyiv","zelensky"],
+    "Pakistan":      ["pakistan","islamabad","karachi","lahore","peshawar"],
+    "India":         ["india","indian","delhi","mumbai","modi","new delhi"],
+    "China":         ["china","chinese","beijing","shanghai","xi jinping"],
+    "Japan":         ["japan","japanese","tokyo","osaka"],
+    "South Korea":   ["south korea","korean","seoul"],
+    "North Korea":   ["north korea","pyongyang","kim jong"],
+    "Afghanistan":   ["afghanistan","afghan","kabul","taliban"],
+    "Iran":          ["iran","iranian","tehran","khamenei"],
+    "Israel":        ["israel","israeli","tel aviv","netanyahu","gaza","west bank"],
+    "Saudi Arabia":  ["saudi","saudi arabia","riyadh"],
+    "Turkey":        ["turkey","turkish","ankara","erdogan"],
+    "Iraq":          ["iraq","iraqi","baghdad"],
+    "Syria":         ["syria","syrian","damascus"],
+    "Yemen":         ["yemen","yemeni","houthi"],
+    "Lebanon":       ["lebanon","lebanese","beirut","hezbollah"],
+    "Russia":        ["russia","russian","moscow","putin","kremlin"],
+    "Ukraine":       ["ukraine","ukrainian","kyiv","zelensky"],
     "United Kingdom":["uk","britain","british","london","england"],
-    "France":       ["france","french","paris","macron"],
-    "Germany":      ["germany","german","berlin"],
-    "Poland":       ["poland","polish","warsaw"],
-    "Spain":        ["spain","spanish","madrid"],
-    "Italy":        ["italy","italian","rome"],
-    "United States":["united states","usa","american","washington","trump","white house","congress","pentagon"],
-    "Canada":       ["canada","canadian","ottawa","toronto"],
-    "Mexico":       ["mexico","mexican","mexico city"],
-    "Brazil":       ["brazil","brazilian","brasilia","lula"],
-    "Argentina":    ["argentina","buenos aires"],
-    "Venezuela":    ["venezuela","venezuelan","caracas","maduro"],
-    "Colombia":     ["colombia","colombian","bogota"],
-    "Nigeria":      ["nigeria","nigerian","abuja","lagos"],
-    "South Africa": ["south africa","pretoria","johannesburg"],
-    "Sudan":        ["sudan","sudanese","khartoum"],
-    "Ethiopia":     ["ethiopia","addis ababa"],
-    "Somalia":      ["somalia","mogadishu","al-shabaab"],
-    "Libya":        ["libya","libyan","tripoli"],
-    "Egypt":        ["egypt","egyptian","cairo"],
-    "Congo":        ["congo","congolese","kinshasa","drc"],
-    "Australia":    ["australia","australian","canberra","sydney"],
+    "France":        ["france","french","paris","macron"],
+    "Germany":       ["germany","german","berlin"],
+    "Poland":        ["poland","polish","warsaw"],
+    "Spain":         ["spain","spanish","madrid"],
+    "Italy":         ["italy","italian","rome"],
+    "United States": ["united states","usa","american","washington","trump","white house","congress","pentagon"],
+    "Canada":        ["canada","canadian","ottawa","toronto"],
+    "Mexico":        ["mexico","mexican","mexico city"],
+    "Brazil":        ["brazil","brazilian","brasilia","lula"],
+    "Argentina":     ["argentina","buenos aires"],
+    "Venezuela":     ["venezuela","venezuelan","caracas","maduro"],
+    "Colombia":      ["colombia","colombian","bogota"],
+    "Nigeria":       ["nigeria","nigerian","abuja","lagos"],
+    "South Africa":  ["south africa","pretoria","johannesburg"],
+    "Sudan":         ["sudan","sudanese","khartoum"],
+    "Ethiopia":      ["ethiopia","addis ababa"],
+    "Somalia":       ["somalia","mogadishu","al-shabaab"],
+    "Libya":         ["libya","libyan","tripoli"],
+    "Egypt":         ["egypt","egyptian","cairo"],
+    "Congo":         ["congo","congolese","kinshasa","drc"],
+    "Australia":     ["australia","australian","canberra","sydney"],
 }
 
 COUNTRY_COORDS = {
@@ -366,7 +546,6 @@ def calculate_risk():
                 headlines.append(e.title.lower())
         except Exception:
             continue
-
     scores = {c: 0 for c in COUNTRY_KEYWORDS}
     for text in headlines:
         for country, keys in COUNTRY_KEYWORDS.items():
@@ -374,7 +553,6 @@ def calculate_risk():
                 scores[country] += 1
                 if any(n in text for n in NEGATIVE):
                     scores[country] += 2
-
     result = {}
     for c, s in scores.items():
         if s >= 8:   result[c] = "critical"
@@ -396,12 +574,11 @@ def news():
     cat   = request.args.get("category", "Pakistan")
     query = request.args.get("q", "")
     live  = get_live_headlines(cat, query)
-    return jsonify({"success": True, "articles": summarize_with_ai(live, cat)})
+    return jsonify({"success": True, "articles": orchestrate(live, cat)})
 
 
 @app.route("/api/summary")
 def summary():
-    """World briefing for the status bar — cached 5 min to avoid rate limits."""
     cached = cache_get("world_summary")
     if cached:
         logger.info("Cache HIT: world_summary")
@@ -413,28 +590,13 @@ def summary():
                 "https://feeds.skynews.com/feeds/rss/world.xml"]:
         try:
             for e in feedparser.parse(url).entries[:4]:
-                headlines.append(e.title)
+                headlines.append({"title": e.title})
         except Exception:
             continue
 
-    if not headlines:
-        return jsonify({"success": False, "summary": "Intelligence feed synchronized."})
-
-    prompt = (
-        "You are a world news anchor. Write ONE sharp, factual 25-word sentence "
-        "summarizing the biggest story in the world right now based on these headlines. "
-        "Be specific. No filler phrases like 'in a world of'. No intro.\n\n"
-        "Headlines:\n" + "\n".join(headlines[:12])
-    )
-    try:
-        text = gemini(prompt, temperature=0.3)
-        text = text.strip().strip('"').strip("'")
-        cache_set("world_summary", text)
-        return jsonify({"success": True, "summary": text})
-    except Exception as ex:
-        logger.error(f"summary FAILED: {ex}")
-        fallback = headlines[0] if headlines else "Intelligence feed synchronized."
-        return jsonify({"success": False, "summary": fallback})
+    text = task_overall_summary(headlines)
+    cache_set("world_summary", text)
+    return jsonify({"success": True, "summary": text})
 
 
 @app.route("/api/risk")
