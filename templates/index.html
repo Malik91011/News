@@ -4,168 +4,200 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PULSE — Real-Time News Dashboard</title>
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6728583776495081"
-       crossorigin="anonymous"></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6728583776495081" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
-    :root { 
-        --bg: #050505; 
-        --card-bg: rgba(255, 255, 255, 0.03); 
-        --border: rgba(255, 255, 255, 0.1); 
-        --accent: #e8c547; 
-        --text: #f0f0f0; 
-        --muted: #888; 
+    :root {
+      --bg: #050505; --card-bg: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1);
+      --accent: #e8c547; --text: #f0f0f0; --muted: #888;
+      --panel-bg: #0c0c0c; --panel-w: 380px;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
 
-    header { 
-        border-bottom: 1px solid var(--border); padding: 0 2.5rem; display: flex; 
-        align-items: center; justify-content: space-between; height: 85px; 
-        position: sticky; top: 0; background: rgba(5, 5, 5, 0.85); backdrop-filter: blur(20px); z-index: 1000; 
-    }
-    .logo { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 900; color: var(--accent); letter-spacing: -1.5px; }
+    /* ── HEADER ── */
+    header { border-bottom:1px solid var(--border); padding:0 2.5rem; display:flex; align-items:center; justify-content:space-between; height:85px; position:sticky; top:0; background:rgba(5,5,5,0.9); backdrop-filter:blur(20px); z-index:1000; }
+    .logo { font-family:'Playfair Display',serif; font-size:2rem; font-weight:900; color:var(--accent); letter-spacing:-1.5px; }
+    .search-container { display:flex; align-items:center; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:50px; padding:5px 6px 5px 22px; transition:border-color 0.3s; }
+    .search-container:focus-within { border-color:rgba(232,197,71,0.4); }
+    .search-container input { background:transparent; border:none; color:#fff; font-size:0.9rem; outline:none; width:240px; font-weight:300; }
+    .search-container button { background:var(--accent); border:none; color:#000; font-weight:700; font-size:0.75rem; padding:10px 24px; cursor:pointer; border-radius:50px; text-transform:uppercase; letter-spacing:1px; transition:opacity 0.2s; }
+    .search-container button:hover { opacity:0.85; }
 
-    .search-container { 
-        display: flex; align-items: center; background: rgba(255,255,255,0.05); 
-        border: 1px solid var(--border); border-radius: 50px; padding: 5px 6px 5px 22px; 
-        transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); 
-    }
-    .search-container input { background: transparent; border: none; color: #fff; font-size: 0.9rem; outline: none; width: 240px; font-weight: 300; }
-    .search-container button { background: var(--accent); border: none; color: #000; font-weight: 700; font-size: 0.75rem; padding: 10px 24px; cursor: pointer; border-radius: 50px; text-transform: uppercase; }
+    /* ── TIME STRIP ── */
+    .time-strip { background:#000; border-bottom:1px solid var(--border); padding:10px 2.5rem; display:flex; gap:2.5rem; overflow-x:auto; scrollbar-width:none; }
+    .time-item { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--muted); letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
+    .time-item span { color:var(--accent); margin-left:8px; font-weight:600; }
 
-    .time-strip { background: #000; border-bottom: 1px solid var(--border); padding: 10px 2.5rem; display: flex; gap: 2.5rem; overflow-x: auto; scrollbar-width: none; }
-    .time-item { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
-    .time-item span { color: var(--accent); margin-left: 8px; font-weight: 600; }
+    /* ── NAV ── */
+    .categories { display:flex; padding:0 2.5rem; border-bottom:1px solid var(--border); overflow-x:auto; gap:1.5rem; scrollbar-width:none; background:var(--bg); }
+    .cat-btn { background:none; border:none; color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:0.75rem; padding:1.5rem 0.5rem; cursor:pointer; text-transform:uppercase; border-bottom:2px solid transparent; transition:0.3s ease; letter-spacing:1px; white-space:nowrap; }
+    .cat-btn:hover,.cat-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
 
-    .categories { display: flex; padding: 0 2.5rem; border-bottom: 1px solid var(--border); overflow-x: auto; gap: 1.5rem; scrollbar-width: none; background: var(--bg); }
-    .cat-btn { background: none; border: none; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; padding: 1.5rem 0.5rem; cursor: pointer; text-transform: uppercase; border-bottom: 2px solid transparent; transition: 0.3s ease; letter-spacing: 1px; white-space: nowrap; }
-    .cat-btn:hover, .cat-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    /* ── BRIEFING ── */
+    .briefing-strip { background:#0a0a0a; border-bottom:1px solid var(--border); padding:0.9rem 2.5rem; font-size:0.85rem; display:flex; align-items:center; gap:1rem; }
+    .briefing-label { color:var(--accent); font-weight:bold; text-transform:uppercase; font-size:0.65rem; border:1px solid var(--accent); padding:2px 8px; border-radius:2px; white-space:nowrap; }
 
-    .briefing-strip { background: #0a0a0a; border-bottom: 1px solid var(--border); padding: 0.9rem 2.5rem; font-size: 0.85rem; display: flex; align-items: center; }
-    .briefing-label { color: var(--accent); font-weight: bold; text-transform: uppercase; font-size: 0.65rem; margin-right: 1.2rem; border: 1px solid var(--accent); padding: 2px 8px; border-radius: 2px; }
+    /* ── LAYOUT SHELL ── */
+    .main-shell { display:flex; min-height:calc(100vh - 200px); }
 
-    main { padding: 3rem 2.5rem; max-width: 1600px; margin: 0 auto; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 2rem; }
-    
-    .card { 
-        background: var(--card-bg); border: 1px solid var(--border); padding: 2.5rem; text-decoration: none; color: inherit; 
-        transition: all 0.5s cubic-bezier(0.165, 0.84, 0.44, 1); border-radius: 12px; display: flex; flex-direction: column; height: 100%; position: relative; overflow: hidden;
-    }
-    .card:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(232, 197, 71, 0.4); transform: translateY(-12px); }
-    .card-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 1.2rem; color: #fff; line-height: 1.2; }
-    .card-summary { font-size: 0.92rem; color: #bbb; line-height: 1.75; margin-bottom: 1.2rem; font-weight: 300; }
-    .card-intel { margin-bottom: 2rem; }
-    .card-intel-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 3px; }
-    .card-intel-label.assessment { color: #e8c547; }
-    .card-intel-label.precaution { color: #ff7b7b; }
-    .importance-badge { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 2px 7px; border-radius: 3px; margin-bottom: 1rem; }
-    .importance-badge.high { background: rgba(255,45,45,0.15); color: #ff6b6b; border: 1px solid rgba(255,45,45,0.3); }
-    .importance-badge.medium { background: rgba(232,197,71,0.15); color: #e8c547; border: 1px solid rgba(232,197,71,0.3); }
-    .importance-badge.low { background: rgba(80,80,80,0.2); color: #888; border: 1px solid rgba(120,120,120,0.3); }
-    .card-intel-text { font-size: 0.82rem; color: #999; line-height: 1.6; font-weight: 300; }
-    .card-meta { margin-top: auto; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #666; display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 1.5rem; align-items: center; }
-    
-    .share-btn { 
-        background: none; border: none; color: var(--accent); 
-        font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; 
-        font-weight: 700; cursor: pointer; text-transform: uppercase; 
-        letter-spacing: 1px; padding: 0; transition: opacity 0.3s;
-    }
-    .share-btn:hover { opacity: 0.7; }
+    /* ── CONTENT AREA ── */
+    .content-area { flex:1; padding:2.5rem; min-width:0; transition:margin-right 0.35s ease; }
 
-    .pulse { height: 8px; width: 8px; background: #ff4d4d; border-radius: 50%; display: inline-block; margin-right: 6px; box-shadow: 0 0 10px #ff4d4d; animation: pulse-anim 2s infinite; }
-    @keyframes pulse-anim { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+    /* ── RIGHT PANEL ── */
+    .side-panel { width:var(--panel-w); min-width:var(--panel-w); background:var(--panel-bg); border-left:1px solid var(--border); position:sticky; top:85px; height:calc(100vh - 85px); overflow-y:auto; overflow-x:hidden; transform:translateX(100%); opacity:0; transition:transform 0.35s ease,opacity 0.25s ease; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+    .side-panel.open { transform:translateX(0); opacity:1; }
+    .side-panel::-webkit-scrollbar { width:4px; }
+    .side-panel::-webkit-scrollbar-thumb { background:var(--border); }
+    .panel-close { position:sticky; top:0; z-index:10; background:var(--panel-bg); border-bottom:1px solid var(--border); padding:1rem 1.5rem; display:flex; justify-content:space-between; align-items:center; }
+    .panel-close-btn { background:none; border:none; color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:0.7rem; cursor:pointer; text-transform:uppercase; letter-spacing:1px; }
+    .panel-close-btn:hover { color:#fff; }
+    .panel-body { padding:1.5rem; }
+    .panel-section { margin-bottom:1.8rem; }
+    .panel-label { font-family:'IBM Plex Mono',monospace; font-size:0.58rem; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin-bottom:0.5rem; }
+    .panel-value { font-size:0.88rem; color:var(--text); line-height:1.6; }
+    .panel-title { font-family:'Playfair Display',serif; font-size:1.3rem; color:#fff; line-height:1.25; margin-bottom:1.5rem; }
 
-    /* --- GLOBAL RISK MAP MODAL --- */
-    .map-overlay {
-        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(5, 5, 5, 0.98); backdrop-filter: blur(15px); z-index: 3000;
-        padding: 2rem; flex-direction: column;
-    }
-    .map-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
-    .map-container { flex-grow: 1; position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; min-height: 400px; }
+    /* ── TOP RISKS WIDGET ── */
+    .top-risks-bar { background:#000; border-bottom:1px solid var(--border); padding:0.75rem 2.5rem; display:flex; align-items:center; gap:1.5rem; overflow-x:auto; scrollbar-width:none; }
+    .top-risks-label { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:var(--accent); text-transform:uppercase; letter-spacing:2px; white-space:nowrap; border:1px solid var(--accent); padding:2px 8px; border-radius:2px; }
+    .risk-pill { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:4px; padding:5px 12px; cursor:pointer; transition:border-color 0.2s; white-space:nowrap; flex-shrink:0; }
+    .risk-pill:hover { border-color:rgba(232,197,71,0.3); }
+    .risk-pill-rank { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; color:var(--muted); }
+    .risk-pill-country { font-family:'IBM Plex Mono',monospace; font-size:0.7rem; color:#fff; font-weight:700; text-transform:uppercase; }
+    .risk-pill-score { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; }
 
-    /* Leaflet map overrides */
-    #riskMap { width: 100%; height: 100%; min-height: 500px; background: #111827; }
-    .leaflet-container { background: #111827 !important; }
-    .leaflet-tile { filter: brightness(0.55) saturate(0.5); }
+    /* ── GLOBAL RISK BRIEF ── */
+    .global-brief-section { margin-bottom:2.5rem; }
+    .section-header { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin-bottom:1.2rem; padding-bottom:0.75rem; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:1rem; }
+    .section-header::after { content:''; flex:1; height:1px; background:var(--border); }
+    .brief-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:1rem; }
+    .brief-card { background:rgba(232,197,71,0.04); border:1px solid rgba(232,197,71,0.15); border-radius:8px; padding:1.2rem 1.4rem; transition:border-color 0.3s; cursor:pointer; }
+    .brief-card:hover { border-color:rgba(232,197,71,0.4); }
+    .brief-card-importance { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem; }
+    .brief-card-title { font-size:0.9rem; color:#fff; font-weight:500; line-height:1.4; margin-bottom:0.6rem; }
+    .brief-card-why { font-size:0.78rem; color:#aaa; line-height:1.5; margin-bottom:0.6rem; font-style:italic; }
+    .brief-card-impact { font-size:0.75rem; color:var(--muted); line-height:1.4; }
 
-    /* Risk legend */
-    .map-legend {
-        display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
-    }
-    .legend-item { display: flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .legend-dot.critical { background: #ff2d2d; box-shadow: 0 0 8px #ff2d2d; }
-    .legend-dot.high { background: #e8c547; box-shadow: 0 0 8px #e8c547; }
-    .legend-dot.low { background: #2dff7a; box-shadow: 0 0 8px #2dff7a; }
-    .legend-dot.none { background: #444; }
+    /* ── CARDS ── */
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:2rem; }
+    .card { background:var(--card-bg); border:1px solid var(--border); padding:2.5rem; color:inherit; transition:all 0.4s cubic-bezier(0.165,0.84,0.44,1); border-radius:12px; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+    .card:hover { background:rgba(255,255,255,0.055); border-color:rgba(232,197,71,0.35); transform:translateY(-8px); }
+    .card-title { font-family:'Playfair Display',serif; font-size:1.5rem; margin-bottom:1rem; color:#fff; line-height:1.2; cursor:pointer; text-decoration:none; display:block; }
+    .card-title:hover { color:var(--accent); }
+    .card-summary { font-size:0.88rem; color:#bbb; line-height:1.75; margin-bottom:1rem; font-weight:300; }
 
-    /* Map loading state */
-    .map-loading {
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted);
-        text-transform: uppercase; letter-spacing: 2px; z-index: 10;
-    }
+    /* importance badge */
+    .importance-badge { display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:0.55rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; padding:2px 8px; border-radius:3px; margin-bottom:0.9rem; }
+    .importance-badge.high { background:rgba(255,45,45,0.15); color:#ff6b6b; border:1px solid rgba(255,45,45,0.3); }
+    .importance-badge.medium { background:rgba(232,197,71,0.15); color:#e8c547; border:1px solid rgba(232,197,71,0.3); }
+    .importance-badge.low { background:rgba(80,80,80,0.2); color:#888; border:1px solid rgba(120,120,120,0.3); }
 
-    /* Custom Leaflet tooltip overrides */
-    .risk-tooltip {
-        background: rgba(5, 5, 5, 0.95) !important;
-        border: 1px solid var(--border) !important;
-        border-radius: 6px !important;
-        color: #fff !important;
-        font-family: 'IBM Plex Mono', monospace !important;
-        font-size: 0.7rem !important;
-        padding: 10px 14px !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.8) !important;
-        white-space: nowrap;
-    }
-    .risk-tooltip::before { display: none !important; }
-    .tooltip-country { font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #fff; }
-    .tooltip-level { text-transform: uppercase; letter-spacing: 1px; font-size: 0.65rem; }
-    .tooltip-level.critical { color: #ff2d2d; }
-    .tooltip-level.high { color: #e8c547; }
-    .tooltip-level.low { color: #2dff7a; }
-    .tooltip-level.none { color: #666; }
+    /* card intel rows */
+    .card-intel { margin-bottom:1rem; }
+    .card-intel-label { font-family:'IBM Plex Mono',monospace; font-size:0.57rem; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:3px; }
+    .card-intel-label.assessment { color:#e8c547; }
+    .card-intel-label.advisory-lbl { color:#ff7b7b; }
+    .card-intel-label.intel { color:#7baaff; }
+    .card-intel-text { font-size:0.82rem; color:#999; line-height:1.6; font-weight:300; }
 
-    /* Permanent country name labels on map */
-    .map-country-label {
-        font-family: 'IBM Plex Mono', monospace;
-        font-size: 0.6rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        white-space: nowrap;
-        padding: 2px 6px;
-        border-radius: 3px;
-        pointer-events: none;
-        transform: translate(-50%, -140%);
-        display: inline-block;
-        text-shadow: 0 1px 4px rgba(0,0,0,0.9);
-    }
-    .map-label-critical { color: #ff6b6b; background: rgba(255,45,45,0.18); border: 1px solid rgba(255,45,45,0.4); }
-    .map-label-high     { color: #f0d060; background: rgba(232,197,71,0.15); border: 1px solid rgba(232,197,71,0.4); }
-    .map-label-low      { color: #5fffaa; background: rgba(45,255,122,0.12); border: 1px solid rgba(45,255,122,0.35); }
-    .map-label-none     { color: #999;    background: rgba(80,80,80,0.15);   border: 1px solid rgba(120,120,120,0.3); }
+    /* tag pills */
+    .tag-row { display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; }
+    .tag { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; padding:2px 7px; border-radius:3px; background:rgba(255,255,255,0.06); color:#aaa; border:1px solid rgba(255,255,255,0.1); }
+    .tag.country { color:#7baaff; border-color:rgba(123,170,255,0.3); background:rgba(123,170,255,0.07); }
+    .tag.industry { color:#7bffb4; border-color:rgba(123,255,180,0.3); background:rgba(123,255,180,0.07); }
 
-    /* Live badge */
-    .live-badge {
-        color: var(--accent); font-family: 'IBM Plex Mono'; font-size: 0.7rem;
-        border: 1px solid var(--accent); padding: 5px 15px; border-radius: 4px;
-        animation: pulse-anim 2s infinite; display: flex; align-items: center; gap: 6px;
-    }
+    /* confidence */
+    .confidence-row { display:flex; align-items:center; gap:8px; margin-top:6px; }
+    .confidence-bar-wrap { flex:1; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden; }
+    .confidence-bar { height:100%; border-radius:2px; transition:width 0.6s ease; }
+    .conf-low { background:#666; width:33%; }
+    .conf-medium { background:#e8c547; width:66%; }
+    .conf-high { background:#2dff7a; width:100%; }
+    .confidence-txt { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; color:var(--muted); text-transform:uppercase; }
 
-    .share-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 2000; justify-content: center; align-items: center; }
-    .share-menu { background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem; width: 340px; text-align: center; }
-    .share-opt { background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #fff; padding: 15px; font-size: 0.65rem; font-family: 'IBM Plex Mono', monospace; text-decoration: none; cursor: pointer; display: block; margin-bottom: 10px; }
-    .share-opt:hover { background: var(--accent); color: #000; }
+    /* card footer */
+    .card-meta { margin-top:auto; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; color:#666; display:flex; justify-content:space-between; border-top:1px solid var(--border); padding-top:1.2rem; align-items:center; }
+    .share-btn { background:none; border:none; color:var(--accent); font-family:'IBM Plex Mono',monospace; font-size:0.7rem; font-weight:700; cursor:pointer; text-transform:uppercase; letter-spacing:1px; padding:0; transition:opacity 0.2s; }
+    .share-btn:hover { opacity:0.7; }
+    .pulse-dot { height:8px; width:8px; background:#ff4d4d; border-radius:50%; display:inline-block; margin-right:5px; box-shadow:0 0 8px #ff4d4d; animation:pulse-anim 2s infinite; }
+    @keyframes pulse-anim { 0%{opacity:1}50%{opacity:0.3}100%{opacity:1} }
+
+    /* ── LOADING STATE ── */
+    .loading-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:2rem; }
+    .skeleton-card { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:2.5rem; animation:shimmer 1.6s infinite; }
+    .skeleton-line { background:rgba(255,255,255,0.06); border-radius:4px; margin-bottom:12px; }
+    @keyframes shimmer { 0%{opacity:0.6}50%{opacity:1}100%{opacity:0.6} }
+
+    /* ── MAP MODAL ── */
+    .map-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(5,5,5,0.98); backdrop-filter:blur(15px); z-index:3000; padding:2rem; flex-direction:column; }
+    .map-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border); padding-bottom:1rem; flex-wrap:wrap; gap:1rem; }
+    .map-shell { flex:1; display:flex; gap:0; min-height:0; position:relative; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .map-container { flex:1; position:relative; min-height:400px; }
+    #riskMap { width:100%; height:100%; min-height:500px; background:#111827; }
+    .leaflet-container { background:#111827 !important; }
+    .leaflet-tile { filter:brightness(0.55) saturate(0.5); }
+
+    /* country side panel inside map */
+    .country-panel { width:320px; min-width:320px; background:#0a0a0a; border-left:1px solid var(--border); overflow-y:auto; transform:translateX(100%); transition:transform 0.3s ease; scrollbar-width:thin; }
+    .country-panel.open { transform:translateX(0); }
+    .country-panel-inner { padding:1.5rem; }
+    .cp-header { border-bottom:1px solid var(--border); padding-bottom:1rem; margin-bottom:1.2rem; }
+    .cp-country { font-family:'Playfair Display',serif; font-size:1.4rem; color:#fff; }
+    .cp-close { background:none; border:none; color:var(--muted); cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; float:right; text-transform:uppercase; }
+    .cp-score-ring { display:flex; align-items:center; gap:1.2rem; margin-bottom:1.2rem; }
+    .score-circle { width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-direction:column; border:3px solid; flex-shrink:0; }
+    .score-circle .score-num { font-family:'IBM Plex Mono',monospace; font-size:1.4rem; font-weight:700; line-height:1; }
+    .score-circle .score-lbl { font-family:'IBM Plex Mono',monospace; font-size:0.45rem; text-transform:uppercase; letter-spacing:1px; }
+    .cp-row { margin-bottom:1.2rem; }
+    .cp-lbl { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin-bottom:0.4rem; }
+    .cp-val { font-size:0.83rem; color:#ccc; line-height:1.5; }
+    .threat-pill { display:inline-block; background:rgba(255,45,45,0.1); border:1px solid rgba(255,45,45,0.25); color:#ff8080; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; padding:2px 8px; border-radius:3px; margin:2px; text-transform:uppercase; }
+    .trend-badge { display:inline-flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:0.65rem; padding:3px 10px; border-radius:4px; text-transform:uppercase; }
+    .trend-increasing { background:rgba(255,45,45,0.12); color:#ff6b6b; border:1px solid rgba(255,45,45,0.25); }
+    .trend-stable { background:rgba(232,197,71,0.1); color:#e8c547; border:1px solid rgba(232,197,71,0.25); }
+    .trend-decreasing { background:rgba(45,255,122,0.1); color:#2dff7a; border:1px solid rgba(45,255,122,0.25); }
+    .cp-event { font-size:0.78rem; color:#999; border-left:2px solid var(--border); padding-left:0.8rem; margin-bottom:0.6rem; line-height:1.4; }
+    .cp-event:last-child { margin-bottom:0; }
+
+    /* map legend */
+    .map-legend { display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap; }
+    .legend-item { display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+    .legend-dot { width:10px; height:10px; border-radius:50%; }
+    .legend-dot.critical { background:#ff2d2d; box-shadow:0 0 8px #ff2d2d; }
+    .legend-dot.high { background:#e8c547; box-shadow:0 0 8px #e8c547; }
+    .legend-dot.low { background:#2dff7a; box-shadow:0 0 8px #2dff7a; }
+    .legend-dot.none { background:#444; }
+    .map-loading { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'IBM Plex Mono',monospace; font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:2px; z-index:10; }
+    .live-badge { color:var(--accent); font-family:'IBM Plex Mono'; font-size:0.7rem; border:1px solid var(--accent); padding:5px 15px; border-radius:4px; animation:pulse-anim 2s infinite; display:flex; align-items:center; gap:6px; }
+
+    /* map country labels */
+    .risk-tooltip { background:rgba(5,5,5,0.95) !important; border:1px solid var(--border) !important; border-radius:6px !important; color:#fff !important; font-family:'IBM Plex Mono',monospace !important; font-size:0.7rem !important; padding:10px 14px !important; box-shadow:0 4px 20px rgba(0,0,0,0.8) !important; white-space:nowrap; }
+    .risk-tooltip::before { display:none !important; }
+    .tooltip-country { font-size:0.8rem; font-weight:700; margin-bottom:4px; }
+    .tooltip-level { text-transform:uppercase; letter-spacing:1px; font-size:0.6rem; }
+    .tooltip-level.critical { color:#ff2d2d; }
+    .tooltip-level.high { color:#e8c547; }
+    .tooltip-level.low { color:#2dff7a; }
+    .tooltip-level.none { color:#666; }
+    .tooltip-score { font-size:0.6rem; color:#888; margin-top:2px; }
+    .map-country-label { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; white-space:nowrap; padding:2px 6px; border-radius:3px; pointer-events:none; transform:translate(-50%,-140%); display:inline-block; text-shadow:0 1px 4px rgba(0,0,0,0.9); }
+    .map-label-critical { color:#ff6b6b; background:rgba(255,45,45,0.18); border:1px solid rgba(255,45,45,0.4); }
+    .map-label-high { color:#f0d060; background:rgba(232,197,71,0.15); border:1px solid rgba(232,197,71,0.4); }
+    .map-label-low { color:#5fffaa; background:rgba(45,255,122,0.12); border:1px solid rgba(45,255,122,0.35); }
+    .map-label-none { color:#999; background:rgba(80,80,80,0.15); border:1px solid rgba(120,120,120,0.3); }
+
+    /* ── SHARE ── */
+    .share-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); z-index:2000; justify-content:center; align-items:center; }
+    .share-menu { background:#0a0a0a; border:1px solid var(--border); border-radius:12px; padding:2.5rem; width:340px; text-align:center; }
+    .share-opt { background:rgba(255,255,255,0.03); border:1px solid var(--border); color:#fff; padding:15px; font-size:0.65rem; font-family:'IBM Plex Mono',monospace; text-decoration:none; cursor:pointer; display:block; margin-bottom:10px; transition:background 0.2s; }
+    .share-opt:hover { background:var(--accent); color:#000; }
   </style>
 </head>
 <body>
 
+<!-- HEADER -->
 <header>
   <div class="logo">PULSE<span>.</span></div>
   <div class="search-container">
@@ -179,117 +211,328 @@
 
 <div class="briefing-strip">
   <span class="briefing-label">Status</span>
-  <span id="briefingText" style="color: #666;">Intelligence feed synchronized...</span>
+  <span id="briefingText" style="color:#666;">Intelligence feed synchronizing...</span>
 </div>
 
-<main><div class="grid" id="newsGrid"></div></main>
+<!-- TOP 5 GLOBAL RISKS BAR -->
+<div class="top-risks-bar" id="topRisksBar">
+  <span class="top-risks-label">⬆ Top Risks</span>
+  <span style="color:#444;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;">Loading...</span>
+</div>
+
+<!-- MAIN SHELL -->
+<div class="main-shell">
+  <div class="content-area" id="contentArea">
+
+    <!-- GLOBAL RISK BRIEF SECTION -->
+    <div class="global-brief-section" id="globalBriefSection">
+      <div class="section-header">Today's Global Risk Brief</div>
+      <div class="brief-grid" id="briefGrid">
+        <!-- skeleton -->
+        <div class="skeleton-card"><div class="skeleton-line" style="height:10px;width:40%;margin-bottom:10px;"></div><div class="skeleton-line" style="height:16px;width:90%;"></div><div class="skeleton-line" style="height:12px;width:70%;"></div></div>
+        <div class="skeleton-card"><div class="skeleton-line" style="height:10px;width:40%;margin-bottom:10px;"></div><div class="skeleton-line" style="height:16px;width:90%;"></div><div class="skeleton-line" style="height:12px;width:70%;"></div></div>
+        <div class="skeleton-card"><div class="skeleton-line" style="height:10px;width:40%;margin-bottom:10px;"></div><div class="skeleton-line" style="height:16px;width:90%;"></div><div class="skeleton-line" style="height:12px;width:70%;"></div></div>
+      </div>
+    </div>
+
+    <!-- NEWS SECTION HEADER -->
+    <div class="section-header" id="newsHeader">Latest Intelligence</div>
+
+    <!-- NEWS GRID -->
+    <div id="newsGrid">
+      <!-- skeleton loading -->
+      <div class="loading-grid" id="skeletonGrid">
+        ${[1,2,3,4,5,6].map(() => `<div class="skeleton-card"><div class="skeleton-line" style="height:14px;width:50%;"></div><div class="skeleton-line" style="height:22px;width:95%;"></div><div class="skeleton-line" style="height:22px;width:80%;"></div><div class="skeleton-line" style="height:12px;width:100%;margin-top:8px;"></div><div class="skeleton-line" style="height:12px;width:85%;"></div></div>`).join('')}
+      </div>
+    </div>
+
+  </div><!-- /content-area -->
+
+  <!-- RIGHT SIDE PANEL -->
+  <div class="side-panel" id="sidePanel">
+    <div class="panel-close">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Detail View</span>
+      <button class="panel-close-btn" onclick="closePanel()">[ ESC ] Close</button>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+  </div>
+
+</div><!-- /main-shell -->
 
 <!-- GLOBAL RISK MAP MODAL -->
 <div class="map-overlay" id="mapOverlay">
-    <div class="map-header">
-        <div class="logo">PULSE<span>.</span> RISK MAP</div>
-        <div class="map-legend">
-            <div class="legend-item"><div class="legend-dot critical"></div> Critical</div>
-            <div class="legend-item"><div class="legend-dot high"></div> High</div>
-            <div class="legend-item"><div class="legend-dot low"></div> Low</div>
-            <div class="legend-item"><div class="legend-dot none"></div> No Data</div>
-        </div>
-        <div class="live-badge">
-            <span class="pulse"></span> LIVE INTELLIGENCE
-        </div>
-        <button class="cat-btn" onclick="closeMap()" style="color: #fff;">[ ESC ] CLOSE</button>
+  <div class="map-header">
+    <div class="logo">PULSE<span>.</span> RISK MAP</div>
+    <div class="map-legend">
+      <div class="legend-item"><div class="legend-dot critical"></div> Critical</div>
+      <div class="legend-item"><div class="legend-dot high"></div> High</div>
+      <div class="legend-item"><div class="legend-dot low"></div> Low</div>
+      <div class="legend-item"><div class="legend-dot none"></div> No Data</div>
     </div>
+    <div class="live-badge"><span class="pulse-dot"></span> LIVE INTELLIGENCE</div>
+    <button class="cat-btn" onclick="closeMap()" style="color:#fff;">[ ESC ] CLOSE</button>
+  </div>
+  <div class="map-shell">
     <div class="map-container" id="mapContainer">
-        <div class="map-loading" id="mapLoading">LOADING GEOSPATIAL INTELLIGENCE...</div>
-        <div id="riskMap"></div>
+      <div class="map-loading" id="mapLoading">LOADING GEOSPATIAL INTELLIGENCE...</div>
+      <div id="riskMap"></div>
     </div>
+    <!-- Country side panel inside map -->
+    <div class="country-panel" id="countryPanel">
+      <div class="country-panel-inner" id="countryPanelBody"></div>
+    </div>
+  </div>
 </div>
 
+<!-- SHARE OVERLAY -->
 <div class="share-overlay" id="shareOverlay">
-    <div class="share-menu">
-        <h4 style="font-family: 'Playfair Display'; color: var(--accent); margin-bottom: 2rem;">DISTRIBUTE</h4>
-        <div class="share-options">
-            <a id="shareX" class="share-opt" target="_blank">X.COM</a>
-            <a id="shareFB" class="share-opt" target="_blank">FACEBOOK</a>
-            <a id="shareLI" class="share-opt" target="_blank">LINKEDIN</a>
-            <div onclick="copyToClipboard()" class="share-opt">COPY LINK</div>
-        </div>
-        <span onclick="closeShare()" style="color: var(--muted); cursor: pointer; font-size: 0.7rem; text-decoration: underline; margin-top: 1rem; display: block;">DISMISS</span>
+  <div class="share-menu">
+    <h4 style="font-family:'Playfair Display';color:var(--accent);margin-bottom:2rem;">DISTRIBUTE</h4>
+    <div class="share-options">
+      <a id="shareX" class="share-opt" target="_blank">X.COM</a>
+      <a id="shareFB" class="share-opt" target="_blank">FACEBOOK</a>
+      <a id="shareLI" class="share-opt" target="_blank">LINKEDIN</a>
+      <div onclick="copyToClipboard()" class="share-opt">COPY LINK</div>
     </div>
+    <span onclick="closeShare()" style="color:var(--muted);cursor:pointer;font-size:0.7rem;text-decoration:underline;margin-top:1rem;display:block;">DISMISS</span>
+  </div>
 </div>
 
-<!-- Leaflet JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-
 <script>
   const CATEGORIES = {{ categories | tojson }};
   let activeCategory = "Pakistan";
   let currentShareUrl = "";
   let riskMap = null;
   let mapInitialized = false;
+  let riskDataCache = {};
+  let panelOpen = false;
 
-  // ── RISK COLOR CONFIG ──
+  // ── RISK COLORS ──
   const RISK_CONFIG = {
-    critical: { color: '#ff2d2d', fillColor: '#ff2d2d', fillOpacity: 0.7,  radius: 350000, pulseColor: 'rgba(255,45,45,0.18)' },
-    high:     { color: '#e8c547', fillColor: '#e8c547', fillOpacity: 0.65, radius: 280000, pulseColor: 'rgba(232,197,71,0.15)' },
-    low:      { color: '#2dff7a', fillColor: '#2dff7a', fillOpacity: 0.55, radius: 200000, pulseColor: 'rgba(45,255,122,0.12)' },
-    none:     { color: '#555555', fillColor: '#444444', fillOpacity: 0.4,  radius: 140000, pulseColor: 'rgba(80,80,80,0.1)'  }
+    critical: { color:'#ff2d2d', fillColor:'#ff2d2d', fillOpacity:0.7,  radius:350000, pulseColor:'rgba(255,45,45,0.18)', hex:'#ff2d2d' },
+    high:     { color:'#e8c547', fillColor:'#e8c547', fillOpacity:0.65, radius:280000, pulseColor:'rgba(232,197,71,0.15)', hex:'#e8c547' },
+    low:      { color:'#2dff7a', fillColor:'#2dff7a', fillOpacity:0.55, radius:200000, pulseColor:'rgba(45,255,122,0.12)', hex:'#2dff7a' },
+    none:     { color:'#555555', fillColor:'#444444', fillOpacity:0.4,  radius:140000, pulseColor:'rgba(80,80,80,0.1)',   hex:'#555555' }
   };
-
-  function getRiskConfig(level) {
-    return RISK_CONFIG[level] || RISK_CONFIG.none;
-  }
+  const getRiskConfig = l => RISK_CONFIG[l] || RISK_CONFIG.none;
 
   // ── WORLD CLOCK ──
   function updateWorldClock() {
     const zones = [
-        { label: 'Islamabad', zone: 'Asia/Karachi' },
-        { label: 'London', zone: 'Europe/London' },
-        { label: 'New York', zone: 'America/New_York' },
-        { label: 'Tokyo', zone: 'Asia/Tokyo' },
-        { label: 'Dubai', zone: 'Asia/Dubai' }
+      {label:'Islamabad', zone:'Asia/Karachi'},
+      {label:'London',    zone:'Europe/London'},
+      {label:'New York',  zone:'America/New_York'},
+      {label:'Tokyo',     zone:'Asia/Tokyo'},
+      {label:'Dubai',     zone:'Asia/Dubai'},
+      {label:'Beijing',   zone:'Asia/Shanghai'},
+      {label:'Moscow',    zone:'Europe/Moscow'},
     ];
     const now = new Date();
     document.getElementById('timeStrip').innerHTML = zones.map(z => {
-        const timeStr = now.toLocaleTimeString('en-GB', { timeZone: z.zone, hour: '2-digit', minute: '2-digit', hour12: false });
-        return `<div class="time-item">${z.label}<span>${timeStr}</span></div>`;
+      const t = now.toLocaleTimeString('en-GB', {timeZone:z.zone, hour:'2-digit', minute:'2-digit', hour12:false});
+      return `<div class="time-item">${z.label}<span>${t}</span></div>`;
     }).join('');
   }
 
+  // ── BRIEFING ──
   async function updateBriefing() {
     try {
-        const res = await fetch(`/api/summary?category=${activeCategory}`);
-        const data = await res.json();
-        if(data.success) document.getElementById('briefingText').innerText = data.summary;
+      const res = await fetch(`/api/summary?category=${activeCategory}`);
+      const d = await res.json();
+      if(d.success) document.getElementById('briefingText').innerText = d.summary;
     } catch(e) {}
+  }
+
+  // ── TOP 5 RISKS BAR ──
+  async function loadTopRisks() {
+    try {
+      const res = await fetch('/api/top-risks');
+      const d = await res.json();
+      if(!d.success || !d.risks.length) return;
+      const bar = document.getElementById('topRisksBar');
+      const pills = d.risks.map((r,i) => {
+        const cfg = getRiskConfig(r.level);
+        const score = r.risk_score || 0;
+        return `<div class="risk-pill" onclick="openGlobalMap()" title="Click to open risk map">
+          <span class="risk-pill-rank">#${i+1}</span>
+          <span class="risk-pill-country">${r.country}</span>
+          <span class="risk-pill-score" style="color:${cfg.hex}">${score}</span>
+        </div>`;
+      }).join('');
+      bar.innerHTML = `<span class="top-risks-label">⬆ Top Risks Now</span>${pills}
+        <span style="color:#333;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;margin-left:auto;white-space:nowrap;cursor:pointer;" onclick="openGlobalMap()">VIEW MAP →</span>`;
+    } catch(e) {}
+  }
+
+  // ── GLOBAL RISK BRIEF ──
+  async function loadGlobalBrief() {
+    try {
+      const res = await fetch('/api/global-brief');
+      const d = await res.json();
+      if(!d.success || !d.events.length) {
+        document.getElementById('globalBriefSection').style.display = 'none';
+        return;
+      }
+      const importanceColor = {high:'#ff6b6b', medium:'#e8c547', low:'#888'};
+      document.getElementById('briefGrid').innerHTML = d.events.map(ev => `
+        <div class="brief-card" onclick="openDetailPanel(${JSON.stringify(ev).replace(/"/g,'&quot;')})">
+          <div class="brief-card-importance" style="color:${importanceColor[ev.importance]||'#888'}">${ev.importance||'—'} importance · ${ev.source||''}</div>
+          <div class="brief-card-title">${ev.title}</div>
+          <div class="brief-card-why">"${ev.why_this_matters||''}"</div>
+          <div class="brief-card-impact">${ev.impact||''}</div>
+          ${ev.affected_countries&&ev.affected_countries.length ? `<div class="tag-row" style="margin-top:8px">${ev.affected_countries.map(c=>`<span class="tag country">${c}</span>`).join('')}</div>` : ''}
+        </div>
+      `).join('');
+    } catch(e) {
+      document.getElementById('globalBriefSection').style.display = 'none';
+    }
+  }
+
+  // ── SKELETON LOADER ──
+  function showSkeleton() {
+    document.getElementById('newsGrid').innerHTML = `
+      <div class="loading-grid">
+        ${[1,2,3,4,5,6].map(() => `<div class="skeleton-card">
+          <div class="skeleton-line" style="height:10px;width:45%;margin-bottom:8px;"></div>
+          <div class="skeleton-line" style="height:22px;width:95%;margin-bottom:6px;"></div>
+          <div class="skeleton-line" style="height:22px;width:75%;margin-bottom:14px;"></div>
+          <div class="skeleton-line" style="height:11px;width:100%;margin-bottom:6px;"></div>
+          <div class="skeleton-line" style="height:11px;width:80%;"></div>
+        </div>`).join('')}
+      </div>`;
+  }
+
+  // ── CARD BUILDER ──
+  function buildCard(a) {
+    const confClass = {'low':'conf-low','medium':'conf-medium','high':'conf-high'}[a.confidence_score] || 'conf-low';
+    const countries = (a.affected_countries||[]).map(c=>`<span class="tag country">${c}</span>`).join('');
+    const industries = (a.affected_industries||[]).map(i=>`<span class="tag industry">${i}</span>`).join('');
+    const tagsHtml = (countries||industries) ? `<div class="tag-row">${countries}${industries}</div>` : '';
+    const confHtml = a.confidence_score ? `
+      <div class="confidence-row">
+        <div class="confidence-bar-wrap"><div class="confidence-bar ${confClass}"></div></div>
+        <span class="confidence-txt">${a.confidence_score} confidence</span>
+      </div>` : '';
+    const nextTriggers = a.next_triggers ? `
+      <div class="card-intel">
+        <div class="card-intel-label intel">⟳ Watch Next 24–72h</div>
+        <div class="card-intel-text">${a.next_triggers}</div>
+      </div>` : '';
+    const whyMatters = a.why_this_matters ? `
+      <div class="card-intel">
+        <div class="card-intel-label intel" style="color:#aaa;">◈ Why It Matters</div>
+        <div class="card-intel-text" style="color:#bbb;font-style:italic;">${a.why_this_matters}</div>
+      </div>` : '';
+
+    return `<div class="card">
+      <a href="${a.url}" target="_blank" class="card-title">${a.title}</a>
+      ${a.importance ? `<span class="importance-badge ${a.importance}">${a.importance} importance</span>` : ''}
+      <div class="card-summary">${a.summary||''}</div>
+      ${tagsHtml}
+      ${confHtml}
+      <div class="card-intel" style="margin-top:0.8rem;">
+        <div class="card-intel-label assessment">▸ Assessment</div>
+        <div class="card-intel-text">${a.assessment||'Situation under review.'}</div>
+      </div>
+      <div class="card-intel">
+        <div class="card-intel-label advisory-lbl">⚠ Advisory</div>
+        <div class="card-intel-text">${a.precaution||'Monitor official sources.'}</div>
+      </div>
+      ${whyMatters}
+      ${nextTriggers}
+      <div class="card-meta">
+        <span>${a.source||''} · ${a.time||''}</span>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <button class="share-btn" onclick="openShare('${a.url}','${(a.title||'').replace(/'/g,"\\\'")}')">SHARE</button>
+          <span><span class="pulse-dot"></span>LIVE</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ── LOAD NEWS ──
+  async function loadContent(query = "") {
+    showSkeleton();
+    try {
+      const res = await fetch(`/api/news?category=${activeCategory}${query ? '&q='+query : ''}`);
+      const data = await res.json();
+      const header = document.getElementById('newsHeader');
+      if(query) {
+        header.textContent = `Search: "${decodeURIComponent(query)}" — ${data.articles.length} result(s)`;
+      } else {
+        header.textContent = `${activeCategory} Intelligence`;
+      }
+      if(!data.articles.length) {
+        document.getElementById('newsGrid').innerHTML = `<div style="color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:0.8rem;padding:2rem;grid-column:1/-1;">NO RESULTS FOUND.</div>`;
+        return;
+      }
+      document.getElementById('newsGrid').innerHTML = `<div class="grid">${data.articles.map(buildCard).join('')}</div>`;
+      updateBriefing();
+    } catch(e) {
+      document.getElementById('newsGrid').innerHTML = `<div style="color:#ff6b6b;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;padding:2rem;">FEED ERROR — RETRYING...</div>`;
+      setTimeout(() => loadContent(query), 5000);
+    }
+  }
+
+  // ── RIGHT SIDE PANEL (detail view for brief cards) ──
+  function openDetailPanel(ev) {
+    const importanceColor = {high:'#ff6b6b', medium:'#e8c547', low:'#888'};
+    const countries = (ev.affected_countries||[]).map(c=>`<span class="tag country">${c}</span>`).join('');
+    const industries = (ev.affected_industries||[]).map(i=>`<span class="tag industry">${i}</span>`).join('');
+    document.getElementById('panelBody').innerHTML = `
+      <div class="panel-section">
+        <div class="panel-label" style="color:${importanceColor[ev.importance]||'#888'}">${ev.importance||'—'} importance</div>
+        <div class="panel-title">${ev.title}</div>
+      </div>
+      ${ev.why_this_matters ? `<div class="panel-section">
+        <div class="panel-label">Why It Matters</div>
+        <div class="panel-value" style="font-style:italic;color:#bbb;">"${ev.why_this_matters}"</div>
+      </div>` : ''}
+      ${ev.impact ? `<div class="panel-section">
+        <div class="panel-label">Impact</div>
+        <div class="panel-value">${ev.impact}</div>
+      </div>` : ''}
+      ${countries||industries ? `<div class="panel-section">
+        <div class="panel-label">Affected</div>
+        <div class="tag-row">${countries}${industries}</div>
+      </div>` : ''}
+      <div class="panel-section">
+        <div class="panel-label">Source</div>
+        <div class="panel-value">${ev.source||'—'}</div>
+      </div>`;
+    document.getElementById('sidePanel').classList.add('open');
+    panelOpen = true;
+  }
+
+  function closePanel() {
+    document.getElementById('sidePanel').classList.remove('open');
+    panelOpen = false;
+  }
+
+  // ── CATEGORY SWITCH ──
+  function switchCategory(cat) {
+    activeCategory = cat;
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.innerText === cat));
+    loadContent();
+  }
+
+  // ── SEARCH ──
+  function searchNews() {
+    const q = document.getElementById('searchInput').value.trim();
+    if(!q) return;
+    showSkeleton();
+    document.getElementById('newsHeader').textContent = `Searching "${q}"...`;
+    loadContent(encodeURIComponent(q));
   }
 
   // ── MAP ──
   function initMap() {
-    if (mapInitialized) return;
+    if(mapInitialized) return;
     mapInitialized = true;
-
-    riskMap = L.map('riskMap', {
-      center: [20, 10],
-      zoom: 2,
-      zoomControl: true,
-      attributionControl: false,
-      minZoom: 1,
-      maxZoom: 6
-    });
-
-    // Base tile layer — lighter dark style so countries are visible
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(riskMap);
-
-    // Country label layer — full opacity so names are readable
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd',
-      maxZoom: 20,
-      opacity: 1.0
-    }).addTo(riskMap);
+    riskMap = L.map('riskMap', {center:[20,10], zoom:2, zoomControl:true, attributionControl:false, minZoom:1, maxZoom:6});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {subdomains:'abcd', maxZoom:20}).addTo(riskMap);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {subdomains:'abcd', maxZoom:20, opacity:1.0}).addTo(riskMap);
   }
 
   async function loadRiskData() {
@@ -297,68 +540,40 @@
     try {
       const res = await fetch('/api/risk');
       const data = await res.json();
+      if(!data.success) return;
+      riskDataCache = data.risk;
 
-      if (!data.success) return;
+      riskMap.eachLayer(l => { if(l._isRiskMarker) riskMap.removeLayer(l); });
 
-      // Clear old layers
-      riskMap.eachLayer(layer => {
-        if (layer._isRiskMarker) riskMap.removeLayer(layer);
-      });
-
-      const risk = data.risk;
-
-      Object.entries(risk).forEach(([country, info]) => {
-        const level = typeof info === 'object' ? info.level : info;
-        const coords = typeof info === 'object' ? info.coords : null;
-        if (!coords || coords[0] === 0) return;
-
+      Object.entries(data.risk).forEach(([country, info]) => {
+        const level = info.level || info;
+        const coords = info.coords;
+        if(!coords) return;
         const cfg = getRiskConfig(level);
+        const score = info.risk_score || 0;
 
-        // Outer pulse ring
-        const pulse = L.circle(coords, {
-          radius: cfg.radius * 2.2,
-          color: 'transparent',
-          fillColor: cfg.pulseColor,
-          fillOpacity: 1,
-          weight: 0
-        }).addTo(riskMap);
+        // Pulse ring
+        const pulse = L.circle(coords, {radius:cfg.radius*2.2, color:'transparent', fillColor:cfg.pulseColor, fillOpacity:1, weight:0}).addTo(riskMap);
         pulse._isRiskMarker = true;
 
-        // Main circle marker
-        const circle = L.circle(coords, {
-          radius: cfg.radius,
-          color: cfg.color,
-          fillColor: cfg.fillColor,
-          fillOpacity: cfg.fillOpacity,
-          weight: 1.5,
-          opacity: 0.9
-        }).addTo(riskMap);
+        // Main circle — clickable
+        const circle = L.circle(coords, {radius:cfg.radius, color:cfg.color, fillColor:cfg.fillColor, fillOpacity:cfg.fillOpacity, weight:1.5, opacity:0.9}).addTo(riskMap);
         circle._isRiskMarker = true;
 
-        // Hover tooltip
-        const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
-        const tooltipHtml = `
-          <div class="tooltip-country">${country}</div>
-          <div class="tooltip-level ${level}">▲ ${levelLabel} Risk</div>
-        `;
+        // Tooltip
+        circle.bindTooltip(`<div class="tooltip-country">${country}</div>
+          <div class="tooltip-level ${level}">▲ ${level.charAt(0).toUpperCase()+level.slice(1)} Risk</div>
+          ${score ? `<div class="tooltip-score">Score: ${score}/100</div>` : ''}`,
+          {className:'risk-tooltip', permanent:false, direction:'top', offset:[0,-8]});
+        circle.on('mouseover', function(){ this.openTooltip(); });
+        circle.on('mouseout',  function(){ this.closeTooltip(); });
 
-        circle.bindTooltip(tooltipHtml, {
-          className: 'risk-tooltip',
-          permanent: false,
-          direction: 'top',
-          offset: [0, -8]
-        });
+        // Click → country panel
+        circle.on('click', () => openCountryPanel(country, info));
 
-        circle.on('mouseover', function() { this.openTooltip(); });
-        circle.on('mouseout', function() { this.closeTooltip(); });
-
-        // Permanent floating country label
-        const labelIcon = L.divIcon({
-          className: '',
-          html: `<div class="map-country-label map-label-${level}">${country}</div>`,
-          iconAnchor: [0, 0]
-        });
-        const label = L.marker(coords, { icon: labelIcon, interactive: false });
+        // Country label
+        const labelIcon = L.divIcon({className:'', html:`<div class="map-country-label map-label-${level}">${country}</div>`, iconAnchor:[0,0]});
+        const label = L.marker(coords, {icon:labelIcon, interactive:false});
         label.addTo(riskMap);
         label._isRiskMarker = true;
       });
@@ -369,90 +584,87 @@
     }
   }
 
+  function openCountryPanel(country, info) {
+    const level = info.level || 'none';
+    const score = info.risk_score || 0;
+    const cfg = getRiskConfig(level);
+    const threats = (info.threats||[]).map(t=>`<span class="threat-pill">${t}</span>`).join('') || '<span style="color:#555;font-size:0.75rem;">No threats detected</span>';
+    const recentEvents = (info.recent_headlines||[]).slice(0,5).map(h=>`<div class="cp-event">${h}</div>`).join('') || '<div style="color:#555;font-size:0.75rem;">No recent events</div>';
+    const trendClass = `trend-${info.risk_trend||'stable'}`;
+    const trendArrow = {increasing:'↑', stable:'→', decreasing:'↓'}[info.risk_trend||'stable'];
+    const outlook = level === 'critical' ? 'Conditions remain volatile. Escalation risk high over next 7 days without diplomatic intervention.' :
+                    level === 'high'     ? 'Situation elevated. Monitor for developments that could shift risk trajectory.' :
+                    level === 'low'      ? 'Manageable risk. Situation stable but requires ongoing monitoring.' :
+                    'No significant risk indicators detected in current intelligence cycle.';
+
+    document.getElementById('countryPanelBody').innerHTML = `
+      <div class="cp-header">
+        <button class="cp-close" onclick="closeCountryPanel()">✕ Close</button>
+        <div class="cp-country">${country}</div>
+      </div>
+      <div class="cp-score-ring">
+        <div class="score-circle" style="border-color:${cfg.hex};color:${cfg.hex};">
+          <span class="score-num" style="color:${cfg.hex};">${score}</span>
+          <span class="score-lbl" style="color:${cfg.hex};">/ 100</span>
+        </div>
+        <div>
+          <div class="cp-lbl">Risk Level</div>
+          <div style="color:${cfg.hex};font-family:'IBM Plex Mono',monospace;font-size:0.9rem;font-weight:700;text-transform:uppercase;margin-bottom:6px;">${level}</div>
+          <div class="trend-badge ${trendClass}">${trendArrow} ${info.risk_trend||'stable'}</div>
+        </div>
+      </div>
+      <div class="cp-row">
+        <div class="cp-lbl">Top Threats</div>
+        <div>${threats}</div>
+      </div>
+      <div class="cp-row">
+        <div class="cp-lbl">Recent Events</div>
+        <div>${recentEvents}</div>
+      </div>
+      <div class="cp-row">
+        <div class="cp-lbl">7-Day Outlook</div>
+        <div class="cp-val">${outlook}</div>
+      </div>`;
+
+    document.getElementById('countryPanel').classList.add('open');
+  }
+
+  function closeCountryPanel() {
+    document.getElementById('countryPanel').classList.remove('open');
+  }
+
   function openGlobalMap() {
     document.getElementById('mapOverlay').style.display = 'flex';
-    // Small delay so the container is visible before Leaflet renders
-    setTimeout(() => {
-      initMap();
-      riskMap.invalidateSize();
-      loadRiskData();
-    }, 100);
+    setTimeout(() => { initMap(); riskMap.invalidateSize(); loadRiskData(); }, 100);
   }
 
   function closeMap() {
     document.getElementById('mapOverlay').style.display = 'none';
+    closeCountryPanel();
   }
-
-  // Close map on ESC key
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMap(); });
 
   // ── SHARE ──
   function openShare(url, title) {
     currentShareUrl = url;
     document.getElementById('shareX').href = `https://x.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
+    document.getElementById('shareFB').href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+    document.getElementById('shareLI').href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
     document.getElementById('shareOverlay').style.display = 'flex';
   }
   function closeShare() { document.getElementById('shareOverlay').style.display = 'none'; }
-  function copyToClipboard() { navigator.clipboard.writeText(currentShareUrl); alert("LINK COPIED"); closeShare(); }
+  function copyToClipboard() { navigator.clipboard.writeText(currentShareUrl); closeShare(); }
 
-  // ── NEWS ──
-  async function loadContent(query = "") {
-    const grid = document.getElementById('newsGrid');
-    grid.style.opacity = "0.3";
-    try {
-        const res = await fetch(`/api/news?category=${activeCategory}${query ? '&q='+query : ''}`);
-        const data = await res.json();
-        grid.innerHTML = data.articles.map(a => `
-            <div class="card">
-                <a href="${a.url}" target="_blank" style="text-decoration:none; color:inherit;">
-                    <div class="card-title">${a.title}</div>
-                    ${a.importance ? `<span class="importance-badge ${a.importance}">${a.importance} importance</span>` : ''}
-                    <div class="card-summary">${a.summary || ''}</div>
-                    <div class="card-intel">
-                        <div class="card-intel-label assessment">▸ Assessment</div>
-                        <div class="card-intel-text">${a.assessment || 'Situation under review.'}</div>
-                    </div>
-                    <div class="card-intel">
-                        <div class="card-intel-label precaution">⚠ Advisory</div>
-                        <div class="card-intel-text">${a.precaution || 'Monitor official sources.'}</div>
-                    </div>
-                </a>
-                <div class="card-meta">
-                    <span>${a.source}</span>
-                    <div style="display:flex; gap:15px; align-items: center;">
-                        <button class="share-btn" onclick="openShare('${a.url}', '${a.title.replace(/'/g, "\\'")}')">SHARE</button>
-                        <span><span class="pulse"></span> LIVE</span>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-        grid.style.opacity = "1";
-        updateBriefing();
-    } catch (e) { console.error(e); }
-  }
-
-  function switchCategory(cat) {
-    activeCategory = cat;
-    document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.innerText === cat));
-    loadContent();
-  }
-
-  function searchNews() {
-    const q = document.getElementById('searchInput').value.trim();
-    if (!q) return;
-    // Visual feedback
-    const grid = document.getElementById('newsGrid');
-    grid.innerHTML = `<div style="color:#666; font-family:'IBM Plex Mono',monospace; font-size:0.8rem; padding:2rem;">SEARCHING: ${q.toUpperCase()}...</div>`;
-    grid.style.opacity = "1";
-    loadContent(encodeURIComponent(q));
-  }
+  // ── KEYBOARD ──
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') { closeMap(); closePanel(); closeShare(); }
+  });
 
   // ── INIT ──
   function init() {
     updateWorldClock();
     setInterval(updateWorldClock, 60000);
     setInterval(updateBriefing, 300000);
-    
+
     const nav = document.getElementById('catNav');
     CATEGORIES.forEach(cat => {
       const btn = document.createElement('button');
@@ -461,15 +673,16 @@
       btn.onclick = () => switchCategory(cat);
       nav.appendChild(btn);
     });
-    
     const mapBtn = document.createElement('button');
     mapBtn.className = 'cat-btn';
     mapBtn.style.color = 'var(--accent)';
-    mapBtn.innerHTML = 'GLOBAL MAP';
+    mapBtn.innerHTML = '⬤ GLOBAL MAP';
     mapBtn.onclick = openGlobalMap;
     nav.appendChild(mapBtn);
 
     loadContent();
+    loadGlobalBrief();
+    loadTopRisks();
   }
 
   window.onload = init;
