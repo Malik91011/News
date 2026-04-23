@@ -437,7 +437,15 @@
     loadContent();
   }
 
-  function searchNews() { loadContent(document.getElementById('searchInput').value); }
+  function searchNews() {
+    const q = document.getElementById('searchInput').value.trim();
+    if (!q) return;
+    // Visual feedback
+    const grid = document.getElementById('newsGrid');
+    grid.innerHTML = '<div style="color:#666; font-family:'IBM Plex Mono',monospace; font-size:0.8rem; padding:2rem;">SEARCHING: ' + q.toUpperCase() + '...</div>';
+    grid.style.opacity = "1";
+    loadContent(encodeURIComponent(q));
+  }
 
   // ── INIT ──
   function init() {
