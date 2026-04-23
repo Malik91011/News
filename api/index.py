@@ -205,38 +205,95 @@ HEALTH_WORDS = {"disease","outbreak","virus","pandemic","hospital","death",
 TECH_WORDS   = {"ai","tech","cyber","hack","data","software","startup","robot",
                 "space","satellite","launch","digital","electric","energy"}
 
+# ── COUNTRY/REGION DETECTION ─────────────────────────────────
+REGION_MAP = {
+    "pakistan": "Pakistan", "india": "India", "china": "China", "russia": "Russia",
+    "ukraine": "Ukraine", "israel": "Israel", "iran": "Iran", "gaza": "Gaza",
+    "usa": "United States", "america": "United States", "europe": "Europe",
+    "middle east": "Middle East", "africa": "Africa", "nato": "NATO countries",
+    "turkey": "Turkey", "saudi": "Saudi Arabia", "yemen": "Yemen",
+    "korea": "Korean Peninsula", "taiwan": "Taiwan Strait",
+}
+INDUSTRY_MAP = {
+    "oil": "Energy", "gas": "Energy", "opec": "Energy", "petroleum": "Energy",
+    "bank": "Finance", "stock": "Finance", "market": "Finance", "crypto": "Finance",
+    "bitcoin": "Finance", "trade": "Trade & Commerce", "tariff": "Trade & Commerce",
+    "tech": "Technology", "ai": "Technology", "cyber": "Technology",
+    "pharma": "Healthcare", "vaccine": "Healthcare", "hospital": "Healthcare",
+    "military": "Defense", "army": "Defense", "weapon": "Defense", "nuclear": "Defense",
+    "food": "Agriculture", "grain": "Agriculture", "wheat": "Agriculture",
+    "shipping": "Logistics", "port": "Logistics", "supply chain": "Logistics",
+}
+
 def local_analyze(title):
+    """Extended local analysis — returns full decision intelligence dict."""
     t = title.lower()
+
+    # Detect affected countries
+    affected_countries = list({v for k, v in REGION_MAP.items() if k in t})[:4]
+    # Detect affected industries
+    affected_industries = list({v for k, v in INDUSTRY_MAP.items() if k in t})[:4]
+
     if any(w in t for w in RISK_WORDS):
-        return (
-            "This event carries potential for regional or international escalation.",
-            "high",
-            "Follow official government travel advisories and monitor situation closely."
-        )
+        return {
+            "assessment": "This event carries potential for regional or international escalation.",
+            "importance": "high",
+            "advisory": "Follow official government travel advisories and monitor situation closely.",
+            "impact": "Regional security and civilian populations are directly affected.",
+            "affected_countries": affected_countries or ["Regional"],
+            "affected_industries": affected_industries or ["Defense", "Humanitarian"],
+            "next_triggers": "Monitor ceasefire negotiations, troop movements, and diplomatic responses in next 24–72h.",
+            "confidence_score": "medium",
+            "why_this_matters": "Escalation could trigger broader regional conflict or international intervention."
+        }
     elif any(w in t for w in ECON_WORDS):
-        return (
-            "Economic developments of this nature can affect markets and consumer prices.",
-            "medium",
-            "Review market exposure and consult a financial advisor if needed."
-        )
+        return {
+            "assessment": "Economic developments of this nature can affect markets and consumer prices.",
+            "importance": "medium",
+            "advisory": "Review market exposure and consult a financial advisor if needed.",
+            "impact": "Global markets, investors, and consumers in affected regions may see price shifts.",
+            "affected_countries": affected_countries or ["Global"],
+            "affected_industries": affected_industries or ["Finance", "Trade & Commerce"],
+            "next_triggers": "Watch for central bank responses, currency movements, and commodity price changes in next 48h.",
+            "confidence_score": "medium",
+            "why_this_matters": "Economic shocks can cascade across interconnected global markets rapidly."
+        }
     elif any(w in t for w in HEALTH_WORDS):
-        return (
-            "Health developments require timely public awareness and institutional response.",
-            "medium",
-            "Follow local health authority guidance and avoid crowded areas if indicated."
-        )
+        return {
+            "assessment": "Health developments require timely public awareness and institutional response.",
+            "importance": "medium",
+            "advisory": "Follow local health authority guidance and avoid crowded areas if indicated.",
+            "impact": "Public health systems and vulnerable populations are at primary risk.",
+            "affected_countries": affected_countries or ["Regional"],
+            "affected_industries": affected_industries or ["Healthcare", "Logistics"],
+            "next_triggers": "Monitor WHO statements, case count updates, and government travel restrictions in next 72h.",
+            "confidence_score": "medium",
+            "why_this_matters": "Health crises can quickly overwhelm infrastructure and cross borders."
+        }
     elif any(w in t for w in TECH_WORDS):
-        return (
-            "Technological shifts can rapidly reshape industries and security postures.",
-            "low",
-            "Stay informed about data privacy and infrastructure security implications."
-        )
+        return {
+            "assessment": "Technological shifts can rapidly reshape industries and security postures.",
+            "importance": "low",
+            "advisory": "Stay informed about data privacy and infrastructure security implications.",
+            "impact": "Tech sector, digital infrastructure, and end-users may be affected.",
+            "affected_countries": affected_countries or ["Global"],
+            "affected_industries": affected_industries or ["Technology", "Finance"],
+            "next_triggers": "Watch for regulatory responses, competitor reactions, and adoption metrics.",
+            "confidence_score": "low",
+            "why_this_matters": "Technology disruptions can alter competitive landscapes overnight."
+        }
     else:
-        return (
-            "Situation is developing; full impact remains to be assessed by authorities.",
-            "low",
-            "Monitor reputable news sources and avoid sharing unverified information."
-        )
+        return {
+            "assessment": "Situation is developing; full impact remains to be assessed.",
+            "importance": "low",
+            "advisory": "Monitor reputable news sources and avoid sharing unverified information.",
+            "impact": "Impact scope is currently unclear and under assessment.",
+            "affected_countries": affected_countries or [],
+            "affected_industries": affected_industries or [],
+            "next_triggers": "Monitor for official statements and follow-up reporting in next 24h.",
+            "confidence_score": "low",
+            "why_this_matters": "Early-stage developments can shift rapidly; situational awareness is key."
+        }
 
 # ── TASKS ────────────────────────────────────────────────────
 
@@ -260,21 +317,26 @@ def task_summarize_articles(headlines):
     return {}
 
 def task_assess_articles(headlines):
-    """GROQ → DeepSeek → Gemini → OpenRouter for structured assessment."""
+    """GROQ → DeepSeek → Gemini → OpenRouter for full decision intelligence."""
     items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
     prompt = (
-        "You are a news intelligence analyst. For each headline provide a structured assessment. "
-        "Return a JSON array. Each object must have: "
+        "You are a news intelligence analyst. For each headline return a JSON array. "
+        "Each object must have exactly these keys: "
         "i (copy number), "
         "importance (low|medium|high), "
-        "impact (1 sentence on potential consequences), "
+        "impact (1 sentence on consequences), "
+        "affected_countries (array of up to 3 country/region names as strings), "
+        "affected_industries (array of up to 3 sector names as strings), "
+        "next_triggers (1 sentence: what to watch in next 24-72h), "
+        "confidence_score (low|medium|high), "
+        "why_this_matters (1 sentence, max 12 words), "
         "bias (neutral|slightly_left|slightly_right|unknown). "
         "No markdown. Return only the JSON array starting with [\n\n"
         + json.dumps(items)
     )
     for fn, name in [(call_groq, "GROQ"), (call_deepseek, "DeepSeek"), (call_gemini, "Gemini"), (call_openrouter, "OpenRouter")]:
         try:
-            raw = fn(prompt, temperature=0.2, max_tokens=1000)
+            raw = fn(prompt, temperature=0.2, max_tokens=1500)
             parsed = extract_json_array(raw)
             logger.info(f"Assessment via {name}")
             return {obj.get("i", ix): obj for ix, obj in enumerate(parsed)}
@@ -322,9 +384,36 @@ def task_overall_summary(headlines):
             logger.warning(f"{name} overall summary failed: {e}")
     return titles[0] if titles else "Intelligence feed synchronized."
 
+# ── DEDUPLICATION + IMPORTANCE SCORING ──────────────────────
+SEVERITY_KEYWORDS = {
+    "war": 10, "nuclear": 10, "invasion": 9, "airstrike": 9, "coup": 9,
+    "collapse": 8, "explosion": 8, "killed": 8, "crisis": 7, "sanctions": 7,
+    "missile": 7, "terror": 7, "attack": 6, "conflict": 6, "protest": 5,
+    "election": 5, "summit": 5, "deal": 4, "talks": 3, "report": 2,
+}
+
+def score_headline(title):
+    """Score a headline by severity keyword weight."""
+    t = title.lower()
+    return sum(v for k, v in SEVERITY_KEYWORDS.items() if k in t)
+
+def deduplicate_headlines(headlines):
+    """Remove near-duplicate headlines using word overlap."""
+    unique = []
+    seen_words = []
+    for h in headlines:
+        words = set(h["title"].lower().split())
+        # Remove common stop words
+        words -= {"the","a","an","in","on","at","to","of","and","or","for","is","are","was","were","as","by"}
+        is_dup = any(len(words & prev) / max(len(words | prev), 1) > 0.55 for prev in seen_words)
+        if not is_dup:
+            unique.append(h)
+            seen_words.append(words)
+    return unique
+
 # ── MAIN ORCHESTRATOR ────────────────────────────────────────
 def orchestrate(headlines, category):
-    """Dispatch tasks to APIs and cache results."""
+    """Dispatch tasks to APIs, deduplicate, score, and cache results."""
     if not headlines:
         return []
 
@@ -334,8 +423,12 @@ def orchestrate(headlines, category):
         logger.info(f"Cache HIT: {cache_key}")
         return cached
 
-    n = len(headlines)
-    logger.info(f"Orchestrating {n} articles for category: {category}")
+    # Deduplicate first
+    headlines = deduplicate_headlines(headlines)
+    # Sort by importance score
+    headlines = sorted(headlines, key=lambda h: score_headline(h["title"]), reverse=True)
+
+    logger.info(f"Orchestrating {len(headlines)} articles for category: {category}")
 
     summaries   = task_summarize_articles(headlines)
     assessments = task_assess_articles(headlines)
@@ -343,30 +436,35 @@ def orchestrate(headlines, category):
 
     results = []
     for i, h in enumerate(headlines):
-        local_assess, local_importance, local_advisory = local_analyze(h["title"])
+        local = local_analyze(h["title"])
 
         assessment_obj = assessments.get(i, {})
-        importance = assessment_obj.get("importance", local_importance)
-        impact     = assessment_obj.get("impact", local_assess)
-        bias       = assessment_obj.get("bias", "unknown")
-
+        importance  = assessment_obj.get("importance", local["importance"])
+        impact      = assessment_obj.get("impact", local["assessment"])
+        bias        = assessment_obj.get("bias", "unknown")
         assessment_text = impact
         if bias not in ("unknown", "neutral", ""):
             assessment_text += f" (Framing: {bias.replace('_', ' ')})"
 
         article = {
-            "title":      h["title"],
-            "summary":    summaries.get(i) or h["title"],
-            "assessment": assessment_text or local_assess,
-            "precaution": advisories.get(i) or local_advisory,
-            "importance": importance,
-            "url":        h["link"],
-            "source":     h.get("source_label", category),
-            "category":   category,
-            "time":       h["published"],
+            "title":              h["title"],
+            "summary":            summaries.get(i) or h["title"],
+            "assessment":         assessment_text or local["assessment"],
+            "precaution":         advisories.get(i) or local["advisory"],
+            "importance":         importance,
+            "impact":             assessment_obj.get("impact", local["impact"]),
+            "affected_countries": assessment_obj.get("affected_countries", local["affected_countries"]),
+            "affected_industries":assessment_obj.get("affected_industries", local["affected_industries"]),
+            "next_triggers":      assessment_obj.get("next_triggers", local["next_triggers"]),
+            "confidence_score":   assessment_obj.get("confidence_score", local["confidence_score"]),
+            "why_this_matters":   assessment_obj.get("why_this_matters", local["why_this_matters"]),
+            "severity_score":     score_headline(h["title"]),
+            "url":                h["link"],
+            "source":             h.get("source_label", category),
+            "category":           category,
+            "time":               h["published"],
         }
         results.append(article)
-        
 
     cache_set(cache_key, results)
     logger.info(f"Orchestration complete for {category}, cached.")
@@ -552,27 +650,60 @@ NEGATIVE = ["war","attack","bomb","conflict","violence","protest","military",
             "missile","shooting","coup","sanction","riot","casualt","invasion",
             "airstrike","refugee","hostage","nuclear","threat","unrest","dead"]
 
+SEVERITY_WEIGHTS = {
+    "war": 5, "nuclear": 5, "invasion": 5, "airstrike": 4, "coup": 4,
+    "collapse": 4, "explosion": 4, "killed": 3, "crisis": 3, "sanctions": 3,
+    "missile": 3, "terror": 3, "attack": 2, "conflict": 2, "protest": 2,
+    "tension": 2, "troops": 2, "threat": 2, "riot": 2,
+}
+
 def calculate_risk():
-    headlines = []
+    """Calculate risk with 0-100 numeric scores and trend data."""
+    all_headlines = []
     for url in RISK_FEEDS:
         try:
             for e in feedparser.parse(url).entries:
-                headlines.append(e.title.lower())
+                all_headlines.append(e.title.lower())
         except Exception:
             continue
-    scores = {c: 0 for c in COUNTRY_KEYWORDS}
-    for text in headlines:
+
+    # Raw mention + severity scores
+    raw_scores = {c: 0 for c in COUNTRY_KEYWORDS}
+    country_headlines = {c: [] for c in COUNTRY_KEYWORDS}
+    
+    for text in all_headlines:
         for country, keys in COUNTRY_KEYWORDS.items():
             if any(k in text for k in keys):
-                scores[country] += 1
-                if any(n in text for n in NEGATIVE):
-                    scores[country] += 2
+                severity = sum(v for k, v in SEVERITY_WEIGHTS.items() if k in text)
+                raw_scores[country] += 1 + severity
+                country_headlines[country].append(text)
+
+    # Normalize to 0-100
+    max_score = max(raw_scores.values()) if raw_scores.values() else 1
+    max_score = max(max_score, 1)
+
     result = {}
-    for c, s in scores.items():
-        if s >= 8:   result[c] = "critical"
-        elif s >= 4: result[c] = "high"
-        elif s >= 1: result[c] = "low"
-        else:        result[c] = "none"
+    for c, s in raw_scores.items():
+        risk_score = min(int((s / max_score) * 100), 100)
+        if s >= 8:   level = "critical"
+        elif s >= 4: level = "high"
+        elif s >= 1: level = "low"
+        else:        level = "none"
+        
+        # Detect top threats from headlines
+        threats = []
+        for h in country_headlines[c][:10]:
+            for kw in ["war", "attack", "sanctions", "nuclear", "coup", "crisis", "invasion", "missile", "explosion"]:
+                if kw in h and kw not in threats:
+                    threats.append(kw)
+        
+        result[c] = {
+            "level": level,
+            "risk_score": risk_score,
+            "threats": threats[:3],
+            "recent_headlines": country_headlines[c][:5],
+            "risk_trend": "increasing" if s > 8 else "stable" if s > 2 else "decreasing",
+        }
     return result
 
 # ─── ROUTES ──────────────────────────────────────────────────
@@ -628,16 +759,88 @@ def summary():
 
 @app.route("/api/risk")
 def risk():
+    cached = cache_get("risk_data")
+    if cached:
+        return jsonify({"success": True, "risk": cached})
     try:
         enriched = {}
-        for country, level in calculate_risk().items():
+        risk_data = calculate_risk()
+        for country, data in risk_data.items():
             coords = COUNTRY_COORDS.get(country)
             if coords:
-                enriched[country] = {"level": level, "coords": coords}
+                enriched[country] = {
+                    "level":            data["level"],
+                    "risk_score":       data["risk_score"],
+                    "threats":          data["threats"],
+                    "risk_trend":       data["risk_trend"],
+                    "recent_headlines": data["recent_headlines"],
+                    "coords":           coords
+                }
+        cache_set("risk_data", enriched)
         return jsonify({"success": True, "risk": enriched})
     except Exception as ex:
         logger.error(f"risk FAILED: {ex}")
         return jsonify({"success": False, "risk": {}})
+
+@app.route("/api/global-brief")
+def global_brief():
+    """Top 5-7 most important global events for the Risk Brief section."""
+    cached = cache_get("global_brief")
+    if cached:
+        return jsonify({"success": True, "events": cached})
+    
+    # Pull from risk feeds and score
+    all_items = []
+    for url in RISK_FEEDS:
+        try:
+            for e in feedparser.parse(url).entries[:8]:
+                score = score_headline(e.title)
+                if score > 0:
+                    local = local_analyze(e.title)
+                    all_items.append({
+                        "title":           e.title,
+                        "why_this_matters": local["why_this_matters"],
+                        "impact":          local["impact"],
+                        "importance":      local["importance"],
+                        "affected_countries": local["affected_countries"],
+                        "severity_score":  score,
+                        "source":          url.split("/")[2].replace("www.", "").replace("feeds.", ""),
+                    })
+        except Exception:
+            continue
+
+    # Deduplicate and take top 7
+    seen = set()
+    unique = []
+    for item in sorted(all_items, key=lambda x: x["severity_score"], reverse=True):
+        words = frozenset(item["title"].lower().split()[:5])
+        if words not in seen:
+            seen.add(words)
+            unique.append(item)
+        if len(unique) >= 7:
+            break
+
+    cache_set("global_brief", unique)
+    return jsonify({"success": True, "events": unique})
+
+@app.route("/api/top-risks")
+def top_risks():
+    """Top 5 global risks ranked by risk_score."""
+    cached = cache_get("top_risks")
+    if cached:
+        return jsonify({"success": True, "risks": cached})
+    try:
+        risk_data = calculate_risk()
+        ranked = sorted(
+            [(c, d) for c, d in risk_data.items() if d["risk_score"] > 0],
+            key=lambda x: x[1]["risk_score"], reverse=True
+        )[:5]
+        result = [{"country": c, **d} for c, d in ranked]
+        cache_set("top_risks", result)
+        return jsonify({"success": True, "risks": result})
+    except Exception as ex:
+        logger.error(f"top-risks FAILED: {ex}")
+        return jsonify({"success": False, "risks": []})
 
 if __name__ == "__main__":
     app.run(debug=True)
