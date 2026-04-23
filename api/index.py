@@ -9,13 +9,14 @@ from flask import Flask, request, jsonify, render_template
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ─── CACHE ───────────────────────────────────────────────────
+# ─── IN-MEMORY CACHE ─────────────────────────────────────────
 _cache = {}
 CACHE_TTL = 300  # 5 minutes
 
 def cache_get(key):
     entry = _cache.get(key)
     if entry and (time.time() - entry[0]) < CACHE_TTL:
+        logger.info(f"Cache HIT: {key}")
         return entry[1]
     return None
 
@@ -34,11 +35,11 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # ═══════════════════════════════════════════════════════════════
-#  API LAYER — each function returns text or raises Exception
+#  API LAYER
 # ═══════════════════════════════════════════════════════════════
 
 def call_groq(prompt, temperature=0.3, max_tokens=1024):
-    """GROQ — ultra-fast, low cost. Used for per-article summaries."""
+    """GROQ — ultra-fast, low cost."""
     if not GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY not set")
     models = ["llama-3.3-70b-versatile", "llama3-8b-8192", "mixtral-8x7b-32768"]
@@ -67,9 +68,8 @@ def call_groq(prompt, temperature=0.3, max_tokens=1024):
             continue
     raise Exception(f"GROQ all models failed. Last: {last_err}")
 
-
 def call_deepseek(prompt, temperature=0.3, max_tokens=1024):
-    """DEEPSEEK — strong reasoning, cost-effective. Used for assessment/analysis."""
+    """DEEPSEEK — strong reasoning."""
     if not DEEPSEEK_API_KEY:
         raise ValueError("DEEPSEEK_API_KEY not set")
     try:
@@ -91,9 +91,8 @@ def call_deepseek(prompt, temperature=0.3, max_tokens=1024):
     except Exception as e:
         raise Exception(f"DeepSeek failed: {e}")
 
-
 def call_gemini(prompt, temperature=0.3, max_tokens=2048):
-    """GEMINI — best reasoning. Used for overall summary and advisories."""
+    """GEMINI — best reasoning."""
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY not set")
     base = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -122,19 +121,15 @@ def call_gemini(prompt, temperature=0.3, max_tokens=2048):
             continue
     raise Exception(f"Gemini all models failed. Last: {last_err}")
 
-
 def call_openrouter(prompt, temperature=0.3, max_tokens=1024):
-    """OPENROUTER — routes to multiple free models. Ultimate fallback."""
+    """OPENROUTER — routes to multiple free models."""
     if not OPENROUTER_API_KEY:
         raise ValueError("OPENROUTER_API_KEY not set")
-    # Free models on OpenRouter — current working list April 2026
     models = [
         "meta-llama/llama-4-scout:free",
         "meta-llama/llama-4-maverick:free",
         "google/gemma-3-27b-it:free",
         "mistralai/mistral-small-3.1-24b-instruct:free",
-        "deepseek/deepseek-r1-zero:free",
-        "qwen/qwen3-8b:free",
     ]
     last_err = None
     for model in models:
@@ -169,7 +164,6 @@ def call_openrouter(prompt, temperature=0.3, max_tokens=1024):
             continue
     raise Exception(f"OpenRouter all models failed. Last: {last_err}")
 
-
 # ═══════════════════════════════════════════════════════════════
 #  ORCHESTRATION ENGINE
 # ═══════════════════════════════════════════════════════════════
@@ -187,7 +181,6 @@ def extract_json_array(text):
         return json.loads(text[s:e])
     raise ValueError("No JSON array found")
 
-
 def extract_json_object(text):
     text = text.strip()
     if "```" in text:
@@ -201,8 +194,7 @@ def extract_json_object(text):
         return json.loads(text[s:e])
     raise ValueError("No JSON object found")
 
-
-# ── LOCAL FALLBACK (no API) ───────────────────────────────────
+# ── LOCAL FALLBACK ───────────────────────────────────────────
 RISK_WORDS   = {"war","attack","bomb","conflict","killed","explosion","crisis",
                 "terror","missile","troops","invasion","airstrike","coup",
                 "violence","shooting","nuclear","sanctions","arrested"}
@@ -246,8 +238,8 @@ def local_analyze(title):
             "Monitor reputable news sources and avoid sharing unverified information."
         )
 
+# ── TASKS ────────────────────────────────────────────────────
 
-# ── TASK 1: PER-ARTICLE SUMMARY → GROQ ───────────────────────
 def task_summarize_articles(headlines):
     """GROQ → DeepSeek → Gemini → OpenRouter for bulk summarization."""
     items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
@@ -265,12 +257,10 @@ def task_summarize_articles(headlines):
             return {i: idx_map.get(i, "") for i in range(len(headlines))}
         except Exception as e:
             logger.warning(f"{name} summarize failed: {e}")
-    return {}  # all failed — orchestrate() will use headline title
+    return {}
 
-
-# ── TASK 2: ASSESSMENT → DEEPSEEK ────────────────────────────
 def task_assess_articles(headlines):
-    """GROQ primary → DeepSeek → Gemini for structured assessment."""
+    """GROQ → DeepSeek → Gemini → OpenRouter for structured assessment."""
     items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
     prompt = (
         "You are a news intelligence analyst. For each headline provide a structured assessment. "
@@ -292,10 +282,8 @@ def task_assess_articles(headlines):
             logger.warning(f"{name} assess failed: {e}")
     return {}
 
-
-# ── TASK 3: ADVISORY → GEMINI ────────────────────────────────
 def task_advisory_articles(headlines):
-    """GROQ primary → Gemini → DeepSeek for per-article advisories."""
+    """GROQ → Gemini → DeepSeek → OpenRouter for per-article advisories."""
     items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
     prompt = (
         "You are a responsible news advisor. "
@@ -314,10 +302,8 @@ def task_advisory_articles(headlines):
             logger.warning(f"{name} advisory failed: {e}")
     return {}
 
-
-# ── TASK 4: OVERALL SUMMARY → GEMINI ─────────────────────────
 def task_overall_summary(headlines):
-    """GROQ primary → Gemini → DeepSeek → local fallback for status bar."""
+    """GROQ → Gemini → DeepSeek → OpenRouter for status bar."""
     titles = [h["title"] for h in headlines[:12]]
     if not titles:
         return "Intelligence feed synchronized."
@@ -336,13 +322,9 @@ def task_overall_summary(headlines):
             logger.warning(f"{name} overall summary failed: {e}")
     return titles[0] if titles else "Intelligence feed synchronized."
 
-
-# ── MAIN ORCHESTRATOR ─────────────────────────────────────────
+# ── MAIN ORCHESTRATOR ────────────────────────────────────────
 def orchestrate(headlines, category):
-    """
-    Dispatch tasks to the right APIs in parallel-ish order.
-    Returns list of fully enriched article dicts.
-    """
+    """Dispatch tasks to APIs and cache results."""
     if not headlines:
         return []
 
@@ -355,10 +337,9 @@ def orchestrate(headlines, category):
     n = len(headlines)
     logger.info(f"Orchestrating {n} articles for category: {category}")
 
-    # Fire all three tasks — each handles its own fallback
-    summaries   = task_summarize_articles(headlines)   # GROQ
-    assessments = task_assess_articles(headlines)       # DEEPSEEK
-    advisories  = task_advisory_articles(headlines)     # GEMINI
+    summaries   = task_summarize_articles(headlines)
+    assessments = task_assess_articles(headlines)
+    advisories  = task_advisory_articles(headlines)
 
     results = []
     for i, h in enumerate(headlines):
@@ -369,12 +350,11 @@ def orchestrate(headlines, category):
         impact     = assessment_obj.get("impact", local_assess)
         bias       = assessment_obj.get("bias", "unknown")
 
-        # Build assessment display text
         assessment_text = impact
         if bias not in ("unknown", "neutral", ""):
             assessment_text += f" (Framing: {bias.replace('_', ' ')})"
 
-        results.append({
+        article = {
             "title":      h["title"],
             "summary":    summaries.get(i) or h["title"],
             "assessment": assessment_text or local_assess,
@@ -384,12 +364,13 @@ def orchestrate(headlines, category):
             "source":     h.get("source_label", category),
             "category":   category,
             "time":       h["published"],
-        })
+        }
+        results.append(article)
+        
 
     cache_set(cache_key, results)
     logger.info(f"Orchestration complete for {category}, cached.")
     return results
-
 
 # ─── RSS FEEDS ────────────────────────────────────────────────
 
@@ -479,7 +460,6 @@ def get_live_headlines(category, query=None):
     return [{"title": e.title, "link": e.link,
              "published": e.get("published", "Just Now"),
              "source_label": getattr(e, "_src", category)} for e in unique[:8]]
-
 
 # ─── RISK ENGINE ─────────────────────────────────────────────
 
@@ -595,21 +575,35 @@ def calculate_risk():
         else:        result[c] = "none"
     return result
 
-
 # ─── ROUTES ──────────────────────────────────────────────────
 
 @app.route("/")
 def home():
     return render_template("index.html", categories=list(RSS_FEEDS.keys()))
 
-
 @app.route("/api/news")
 def news():
     cat   = request.args.get("category", "Pakistan")
-    query = request.args.get("q", "")
+    query = request.args.get("q", "").strip()
     live  = get_live_headlines(cat, query)
+    
+    if query:
+        # Search: bypass cache, filter results, skip AI (too slow for search)
+        results = [{
+            "title":      h["title"],
+            "summary":    h["title"],
+            "assessment": "",
+            "precaution": "",
+            "importance": "",
+            "url":        h["link"],
+            "source":     h.get("source_label", cat),
+            "category":   cat,
+            "time":       h["published"],
+        } for h in live]
+        logger.info(f"Search '{query}' returned {len(results)} results")
+        return jsonify({"success": True, "articles": results})
+    
     return jsonify({"success": True, "articles": orchestrate(live, cat)})
-
 
 @app.route("/api/summary")
 def summary():
@@ -632,7 +626,6 @@ def summary():
     cache_set("world_summary", text)
     return jsonify({"success": True, "summary": text})
 
-
 @app.route("/api/risk")
 def risk():
     try:
@@ -645,7 +638,6 @@ def risk():
     except Exception as ex:
         logger.error(f"risk FAILED: {ex}")
         return jsonify({"success": False, "risk": {}})
-
 
 if __name__ == "__main__":
     app.run(debug=True)
