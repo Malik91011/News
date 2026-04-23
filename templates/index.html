@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PULSE — Real-Time News Dashboard</title>
+  <title>PULSE — Real-Time Global Risk</title>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6728583776495081" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
@@ -26,7 +26,11 @@
     .search-container button:hover { opacity:0.85; }
 
     /* ── TIME STRIP ── */
-    .time-strip { background:#000; border-bottom:1px solid var(--border); padding:10px 2.5rem; display:flex; gap:2.5rem; overflow-x:auto; scrollbar-width:none; }
+    .time-strip { background:#000; border-bottom:1px solid var(--border); padding:10px 0; display:flex; overflow:hidden; scrollbar-width:none; position:relative; }
+    @keyframes ticker-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
     .time-item { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--muted); letter-spacing:1px; text-transform:uppercase; white-space:nowrap; }
     .time-item span { color:var(--accent); margin-left:8px; font-weight:600; }
 
@@ -317,22 +321,70 @@
   };
   const getRiskConfig = l => RISK_CONFIG[l] || RISK_CONFIG.none;
 
-  // ── WORLD CLOCK ──
-  function updateWorldClock() {
-    const zones = [
-      {label:'Islamabad', zone:'Asia/Karachi'},
-      {label:'London',    zone:'Europe/London'},
-      {label:'New York',  zone:'America/New_York'},
-      {label:'Tokyo',     zone:'Asia/Tokyo'},
-      {label:'Dubai',     zone:'Asia/Dubai'},
-      {label:'Beijing',   zone:'Asia/Shanghai'},
-      {label:'Moscow',    zone:'Europe/Moscow'},
-    ];
+  // ── WORLD CLOCK (auto-scrolling ticker) ──
+  const ZONES = [
+    {label:'Islamabad',    zone:'Asia/Karachi'},
+    {label:'London',       zone:'Europe/London'},
+    {label:'New York',     zone:'America/New_York'},
+    {label:'Tokyo',        zone:'Asia/Tokyo'},
+    {label:'Dubai',        zone:'Asia/Dubai'},
+    {label:'Beijing',      zone:'Asia/Shanghai'},
+    {label:'Moscow',       zone:'Europe/Moscow'},
+    {label:'Sydney',       zone:'Australia/Sydney'},
+    {label:'Paris',        zone:'Europe/Paris'},
+    {label:'Singapore',    zone:'Asia/Singapore'},
+    {label:'Toronto',      zone:'America/Toronto'},
+    {label:'São Paulo',    zone:'America/Sao_Paulo'},
+    {label:'Lagos',        zone:'Africa/Lagos'},
+    {label:'Cairo',        zone:'Africa/Cairo'},
+    {label:'Nairobi',      zone:'Africa/Nairobi'},
+    {label:'Jakarta',      zone:'Asia/Jakarta'},
+    {label:'Seoul',        zone:'Asia/Seoul'},
+    {label:'Los Angeles',  zone:'America/Los_Angeles'},
+    {label:'Chicago',      zone:'America/Chicago'},
+    {label:'Berlin',       zone:'Europe/Berlin'},
+    {label:'Madrid',       zone:'Europe/Madrid'},
+    {label:'Istanbul',     zone:'Europe/Istanbul'},
+    {label:'Riyadh',       zone:'Asia/Riyadh'},
+    {label:'Karachi',      zone:'Asia/Karachi'},
+    {label:'Mumbai',       zone:'Asia/Kolkata'},
+    {label:'Dhaka',        zone:'Asia/Dhaka'},
+    {label:'Kabul',        zone:'Asia/Kabul'},
+    {label:'Tehran',       zone:'Asia/Tehran'},
+    {label:'Johannesburg', zone:'Africa/Johannesburg'},
+    {label:'Mexico City',  zone:'America/Mexico_City'},
+  ];
+
+  function buildTickerHTML() {
     const now = new Date();
-    document.getElementById('timeStrip').innerHTML = zones.map(z => {
+    return ZONES.map(z => {
       const t = now.toLocaleTimeString('en-GB', {timeZone:z.zone, hour:'2-digit', minute:'2-digit', hour12:false});
       return `<div class="time-item">${z.label}<span>${t}</span></div>`;
     }).join('');
+  }
+
+  function updateWorldClock() {
+    const inner = document.getElementById('tickerInner');
+    if(!inner) return;
+    // Update both copies (original + clone) for seamless loop
+    const html = buildTickerHTML();
+    document.querySelectorAll('.ticker-set').forEach(el => el.innerHTML = html);
+  }
+
+  function initTicker() {
+    const strip = document.getElementById('timeStrip');
+    strip.innerHTML = `
+      <div id="tickerInner" style="display:flex;width:max-content;animation:ticker-scroll 60s linear infinite;">
+        <div class="ticker-set" style="display:flex;gap:2.5rem;padding-right:2.5rem;">${buildTickerHTML()}</div>
+        <div class="ticker-set" style="display:flex;gap:2.5rem;padding-right:2.5rem;">${buildTickerHTML()}</div>
+      </div>`;
+    // Pause on hover
+    strip.addEventListener('mouseenter', () => {
+      document.getElementById('tickerInner').style.animationPlayState = 'paused';
+    });
+    strip.addEventListener('mouseleave', () => {
+      document.getElementById('tickerInner').style.animationPlayState = 'running';
+    });
   }
 
   // ── BRIEFING ──
@@ -661,7 +713,7 @@
 
   // ── INIT ──
   function init() {
-    updateWorldClock();
+    initTicker();
     setInterval(updateWorldClock, 60000);
     setInterval(updateBriefing, 300000);
 
