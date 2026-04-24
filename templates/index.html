@@ -588,11 +588,13 @@
         <div class="card-intel-text" style="color:#bbb;font-style:italic;">${a.why_this_matters}</div>
       </div>` : '';
     const safeTitle = (a.title||'').replace(/'/g, "\'").replace(/"/g, '&quot;');
+    const url   = (a.url||'#').replace(/'/g,"&apos;");
+    const title = (a.title||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     return `<div class="card">
-      <a href="${a.url}" target="_blank" class="card-title">${a.title}</a>
+      <a href="${url}" target="_blank" class="card-title">${title}</a>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:0.7rem;flex-wrap:wrap;">
         ${a.importance ? `<span class="importance-badge ${a.importance}">${a.importance}</span>` : ''}
-        <span class="cred-badge cred-${a.credibility||'Low'}" style="font-size:0.52rem;">${a.credibility||'Low'} credibility${a.source_count>1?' · '+a.source_count+' sources':''}</span>
+        <span class="cred-badge cred-${a.credibility||'Low'}" style="font-size:0.52rem;">${a.credibility||'Low'} credibility${(a.source_count||1)>1?' · '+a.source_count+' sources':''}</span>
       </div>
       <div class="card-summary">${a.summary||''}</div>
       ${tagsHtml}
@@ -610,11 +612,15 @@
       <div class="card-meta">
         <span style="color:#555;">${a.source||''} · ${a.time||''}</span>
         <div style="display:flex;gap:12px;align-items:center;">
-          <button class="share-btn" onclick="openShare('${a.url}','${safeTitle}')">SHARE</button>
+          <button class="share-btn" onclick="openShare(this.dataset.url,this.dataset.title)" data-url="${url}" data-title="${safeTitle}">SHARE</button>
           <span><span class="pulse-dot"></span>LIVE</span>
         </div>
       </div>
     </div>`;
+    } catch(cardErr) {
+      console.error('buildCard error:', cardErr, a);
+      return `<div class="card"><div class="card-title">${(a&&a.title)||'Article'}</div></div>`;
+    }
   }
 
   // ── LOAD NEWS ──
@@ -634,10 +640,11 @@
         return;
       }
       document.getElementById('newsGrid').innerHTML = `<div class="grid">${data.articles.map(buildCard).join('')}</div>`;
-      document.getElementById('newsLastUpdated').textContent = 'Updated ' + minutesAgo(Date.now());
+      const nlu = document.getElementById('newsLastUpdated'); if(nlu) nlu.textContent = 'Updated ' + minutesAgo(Date.now());
       updateBriefing();
     } catch(e) {
-      document.getElementById('newsGrid').innerHTML = `<div style="color:#ff6b6b;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;padding:2rem;">FEED ERROR — RETRYING...</div>`;
+      console.error('loadContent error:', e);
+      document.getElementById('newsGrid').innerHTML = `<div style="color:#ff6b6b;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;padding:2rem;">FEED ERROR — RETRYING...<br><small style="color:#555;">${e.message||e}</small></div>`;
       setTimeout(() => loadContent(query), 5000);
     }
   }
@@ -843,11 +850,14 @@
   }
 
   // ── SHARE ──
-  function openShare(url, title) {
+  function openShare(urlOrEl, title) {
+    // Support both openShare(url, title) and openShare(buttonEl, title)
+    const url = (urlOrEl && urlOrEl.dataset) ? urlOrEl.dataset.url : urlOrEl;
+    const t   = (urlOrEl && urlOrEl.dataset) ? urlOrEl.dataset.title : title;
     currentShareUrl = url;
-    document.getElementById('shareX').href = `https://x.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
-    document.getElementById('shareFB').href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
-    document.getElementById('shareLI').href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
+    document.getElementById('shareX').href = `https://x.com/intent/tweet?text=${encodeURIComponent(t||'')}&url=${encodeURIComponent(url||'')}`;
+    document.getElementById('shareFB').href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url||'')}`;
+    document.getElementById('shareLI').href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url||'')}`;
     document.getElementById('shareOverlay').style.display = 'flex';
   }
   function closeShare() { document.getElementById('shareOverlay').style.display = 'none'; }
