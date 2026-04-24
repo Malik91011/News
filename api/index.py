@@ -517,73 +517,67 @@ def fetch_feed_safe(url):
         return []
 
 def get_live_headlines(category, query=None):
+    """Fetch headlines as plain dicts — safe for all feedparser versions."""
+    raw = []  # list of (entry, src_label) tuples
+
     if category == "Pakistan":
-        all_entries = []
         for url in PAKISTAN_FEEDS:
-            entries = fetch_feed_safe(url)
             src = ("Dawn" if "dawn" in url else
                    "ARY News" if "arynews" in url else
                    "Tribune" if "tribune" in url else "Geo News")
-            for e in entries:
-                e["_src"] = src
-            all_entries.extend(entries)
+            for e in fetch_feed_safe(url):
+                raw.append((e, src))
     elif category == "Sports":
         sports_kw = ["sport","cricket","football","soccer","tennis","psl","fifa",
                      "olympic","match","league","cup","hockey","rugby","golf",
                      "f1","racing","champion","wicket","innings","goal","score"]
-        all_entries = []
         for url in SPORTS_FEEDS:
-            entries = fetch_feed_safe(url)
             src = ("BBC Sport" if "bbc" in url else
                    "Al Jazeera" if "aljazeera" in url else "ARY Sports")
-            for e in entries:
-                tl = e.title.lower()
-                if "aljazeera" in url and not any(k in tl for k in sports_kw):
+            for e in fetch_feed_safe(url):
+                if "aljazeera" in url and not any(k in e.title.lower() for k in sports_kw):
                     continue
-                e["_src"] = src
-                all_entries.append(e)
+                raw.append((e, src))
     else:
         url = RSS_FEEDS.get(category, RSS_FEEDS["World"])
-        all_entries = fetch_feed_safe(url)
-        for e in all_entries:
-            e["_src"] = category
+        for e in fetch_feed_safe(url):
+            raw.append((e, category))
 
-    all_entries.sort(key=lambda x: x.get("published_parsed", time.gmtime(0)), reverse=True)
+    # Sort by date
+    raw.sort(key=lambda x: x[0].get("published_parsed", time.gmtime(0)), reverse=True)
 
+    # Filter by search query
     if query:
         q = query.lower()
-        all_entries = [e for e in all_entries
-                       if q in e.title.lower() or q in getattr(e, "summary", "").lower()]
+        raw = [(e, s) for e, s in raw
+               if q in e.title.lower() or q in getattr(e, "summary", "").lower()]
 
-    seen, unique = set(), []
-    for e in all_entries:
-        k = e.title.lower().strip()
-        if k not in seen:
-            seen.add(k)
-            unique.append(e)
-
-    # Count how many distinct sources covered each story (multi-source credibility)
+    # Build title → sources map for credibility scoring
     title_sources = {}
-    for e in all_entries:
+    for e, src in raw:
         key = e.title.lower().strip()
-        src = getattr(e, "_src", category)
-        if key not in title_sources:
-            title_sources[key] = set()
-        title_sources[key].add(src)
+        title_sources.setdefault(key, set()).add(src)
 
-    result = []
-    for e in unique[:8]:
+    # Deduplicate by exact title
+    seen, result = set(), []
+    for e, src in raw:
         key = e.title.lower().strip()
-        source_count = len(title_sources.get(key, {1}))
+        if key in seen:
+            continue
+        seen.add(key)
+        source_count = len(title_sources.get(key, {src}))
         credibility = "High" if source_count >= 3 else "Medium" if source_count == 2 else "Low"
         result.append({
-            "title":          e.title,
-            "link":           e.link,
-            "published":      e.get("published", "Just Now"),
-            "source_label":   getattr(e, "_src", category),
-            "source_count":   source_count,
-            "credibility":    credibility,
+            "title":        e.title,
+            "link":         e.get("link", "#"),
+            "published":    e.get("published", "Just Now"),
+            "source_label": src,
+            "source_count": source_count,
+            "credibility":  credibility,
         })
+        if len(result) >= 8:
+            break
+
     return result
 
 # ─── RISK ENGINE ─────────────────────────────────────────────
