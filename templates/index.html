@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PULSE — Real-Time Global Risk</title>
+  <title>PULSE — Real-Time Global RISK</title>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6728583776495081" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
@@ -310,9 +310,13 @@
 
     <!-- NEWS GRID -->
     <div id="newsGrid">
-      <!-- skeleton loading -->
-      <div class="loading-grid" id="skeletonGrid">
-        ${[1,2,3,4,5,6].map(() => `<div class="skeleton-card"><div class="skeleton-line" style="height:14px;width:50%;"></div><div class="skeleton-line" style="height:22px;width:95%;"></div><div class="skeleton-line" style="height:22px;width:80%;"></div><div class="skeleton-line" style="height:12px;width:100%;margin-top:8px;"></div><div class="skeleton-line" style="height:12px;width:85%;"></div></div>`).join('')}
+      <div class="loading-grid">
+        <div class="skeleton-card"><div class="skeleton-line" style="height:14px;width:50%;"></div><div class="skeleton-line" style="height:22px;width:95%;"></div><div class="skeleton-line" style="height:22px;width:80%;"></div><div class="skeleton-line" style="height:12px;width:100%;margin-top:8px;"></div><div class="skeleton-line" style="height:12px;width:85%;"></div></div>
+        <div class="skeleton-card"><div class="skeleton-line" style="height:14px;width:40%;"></div><div class="skeleton-line" style="height:22px;width:90%;"></div><div class="skeleton-line" style="height:22px;width:75%;"></div><div class="skeleton-line" style="height:12px;width:95%;margin-top:8px;"></div><div class="skeleton-line" style="height:12px;width:70%;"></div></div>
+        <div class="skeleton-card"><div class="skeleton-line" style="height:14px;width:55%;"></div><div class="skeleton-line" style="height:22px;width:85%;"></div><div class="skeleton-line" style="height:22px;width:90%;"></div><div class="skeleton-line" style="height:12px;width:100%;margin-top:8px;"></div><div class="skeleton-line" style="height:12px;width:60%;"></div></div>
+        <div class="skeleton-card"><div class="skeleton-line" style="height:14px;width:45%;"></div><div class="skeleton-line" style="height:22px;width:95%;"></div><div class="skeleton-line" style="height:22px;width:70%;"></div><div class="skeleton-line" style="height:12px;width:90%;margin-top:8px;"></div><div class="skeleton-line" style="height:12px;width:80%;"></div></div>
+        <div class="skeleton-card"><div class="skeleton-line" style="height:14px;width:35%;"></div><div class="skeleton-line" style="height:22px;width:100%;"></div><div class="skeleton-line" style="height:22px;width:85%;"></div><div class="skeleton-line" style="height:12px;width:95%;margin-top:8px;"></div><div class="skeleton-line" style="height:12px;width:75%;"></div></div>
+        <div class="skeleton-card"><div class="skeleton-line" style="height:14px;width:60%;"></div><div class="skeleton-line" style="height:22px;width:80%;"></div><div class="skeleton-line" style="height:22px;width:95%;"></div><div class="skeleton-line" style="height:12px;width:85%;margin-top:8px;"></div><div class="skeleton-line" style="height:12px;width:65%;"></div></div>
       </div>
     </div>
 
@@ -554,16 +558,14 @@
 
   // ── SKELETON LOADER ──
   function showSkeleton() {
-    document.getElementById('newsGrid').innerHTML = `
-      <div class="loading-grid">
-        ${[1,2,3,4,5,6].map(() => `<div class="skeleton-card">
-          <div class="skeleton-line" style="height:10px;width:45%;margin-bottom:8px;"></div>
-          <div class="skeleton-line" style="height:22px;width:95%;margin-bottom:6px;"></div>
-          <div class="skeleton-line" style="height:22px;width:75%;margin-bottom:14px;"></div>
-          <div class="skeleton-line" style="height:11px;width:100%;margin-bottom:6px;"></div>
-          <div class="skeleton-line" style="height:11px;width:80%;"></div>
-        </div>`).join('')}
-      </div>`;
+    const skCard = `<div class="skeleton-card">
+      <div class="skeleton-line" style="height:10px;width:45%;margin-bottom:8px;"></div>
+      <div class="skeleton-line" style="height:22px;width:95%;margin-bottom:6px;"></div>
+      <div class="skeleton-line" style="height:22px;width:75%;margin-bottom:14px;"></div>
+      <div class="skeleton-line" style="height:11px;width:100%;margin-bottom:6px;"></div>
+      <div class="skeleton-line" style="height:11px;width:80%;"></div>
+    </div>`;
+    document.getElementById('newsGrid').innerHTML = `<div class="loading-grid">${skCard.repeat(6)}</div>`;
   }
 
   // ── CARD BUILDER ──
@@ -617,10 +619,6 @@
         </div>
       </div>
     </div>`;
-    } catch(cardErr) {
-      console.error('buildCard error:', cardErr, a);
-      return `<div class="card"><div class="card-title">${(a&&a.title)||'Article'}</div></div>`;
-    }
   }
 
   // ── LOAD NEWS ──
