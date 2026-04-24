@@ -192,6 +192,59 @@
     .map-label-low { color:#5fffaa; background:rgba(45,255,122,0.12); border:1px solid rgba(45,255,122,0.35); }
     .map-label-none { color:#999; background:rgba(80,80,80,0.15); border:1px solid rgba(120,120,120,0.3); }
 
+    /* ── CREDIBILITY SIGNAL ── */
+    .credibility-row { display:flex; align-items:center; gap:8px; margin-bottom:0.6rem; }
+    .cred-label { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
+    .cred-badge { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; font-weight:700; padding:1px 7px; border-radius:3px; text-transform:uppercase; }
+    .cred-High   { background:rgba(45,255,122,0.1); color:#2dff7a; border:1px solid rgba(45,255,122,0.3); }
+    .cred-Medium { background:rgba(232,197,71,0.1); color:#e8c547; border:1px solid rgba(232,197,71,0.3); }
+    .cred-Low    { background:rgba(120,120,120,0.1); color:#888; border:1px solid rgba(120,120,120,0.3); }
+    .source-count { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; color:#555; }
+
+    /* ── RISK BREAKDOWN BARS ── */
+    .breakdown-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; margin-top:0.8rem; }
+    .breakdown-item { }
+    .breakdown-lbl { font-family:'IBM Plex Mono',monospace; font-size:0.5rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:3px; display:flex; justify-content:space-between; }
+    .breakdown-bar-wrap { height:3px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden; }
+    .breakdown-bar { height:100%; border-radius:2px; transition:width 0.8s ease; }
+    .breakdown-conflict  { background:#ff4d4d; }
+    .breakdown-political { background:#e8c547; }
+    .breakdown-economic  { background:#7baaff; }
+    .breakdown-intensity { background:#7bffb4; }
+
+    /* ── BREAKING ALERT BANNER ── */
+    .alert-banner { background:rgba(255,45,45,0.08); border:1px solid rgba(255,45,45,0.3); border-radius:6px; padding:0.75rem 1.2rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem; animation:alert-pulse 2s infinite; }
+    .alert-banner.hidden { display:none; }
+    @keyframes alert-pulse { 0%{border-color:rgba(255,45,45,0.3)}50%{border-color:rgba(255,45,45,0.7)}100%{border-color:rgba(255,45,45,0.3)} }
+    .alert-dot { width:8px; height:8px; background:#ff2d2d; border-radius:50%; flex-shrink:0; box-shadow:0 0 8px #ff2d2d; animation:pulse-anim 1.2s infinite; }
+    .alert-label { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; font-weight:700; color:#ff6b6b; text-transform:uppercase; letter-spacing:2px; white-space:nowrap; }
+    .alert-text { font-family:'IBM Plex Sans',sans-serif; font-size:0.82rem; color:#ffaaaa; line-height:1.4; }
+    .alert-country { color:#ff2d2d; font-weight:700; }
+
+    /* ── LAST UPDATED ── */
+    .last-updated { font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#444; margin-left:auto; text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+
+    /* ── TOP 5 RISKS PROMINENT SECTION ── */
+    .top5-section { margin-bottom:2.5rem; }
+    .top5-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:0.75rem; }
+    .top5-card { background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:1.2rem; cursor:pointer; transition:all 0.25s; position:relative; overflow:hidden; }
+    .top5-card:hover { border-color:rgba(232,197,71,0.3); transform:translateY(-3px); }
+    .top5-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+    .top5-card.critical::before { background:#ff2d2d; }
+    .top5-card.high::before    { background:#e8c547; }
+    .top5-card.low::before     { background:#2dff7a; }
+    .top5-rank { font-family:'IBM Plex Mono',monospace; font-size:0.55rem; color:#444; margin-bottom:0.4rem; }
+    .top5-country { font-family:'Playfair Display',serif; font-size:1.1rem; color:#fff; margin-bottom:0.5rem; line-height:1.1; }
+    .top5-score-row { display:flex; align-items:baseline; gap:4px; margin-bottom:0.5rem; }
+    .top5-score-num { font-family:'IBM Plex Mono',monospace; font-size:2rem; font-weight:700; line-height:1; }
+    .top5-score-denom { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:#555; }
+    .top5-trend { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; padding:2px 8px; border-radius:3px; display:inline-block; }
+    .top5-threats { margin-top:0.6rem; display:flex; flex-wrap:wrap; gap:4px; }
+
+    /* ── CARD UPGRADES ── */
+    .card { box-shadow: 0 2px 20px rgba(0,0,0,0.4); }
+    .card:hover { box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
+
     /* ── SHARE ── */
     .share-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); z-index:2000; justify-content:center; align-items:center; }
     .share-menu { background:#0a0a0a; border:1px solid var(--border); border-radius:12px; padding:2.5rem; width:340px; text-align:center; }
@@ -239,8 +292,21 @@
       </div>
     </div>
 
+    <!-- BREAKING ALERT BANNER -->
+    <div class="alert-banner hidden" id="alertBanner">
+      <div class="alert-dot"></div>
+      <span class="alert-label">Breaking</span>
+      <span class="alert-text" id="alertText"></span>
+    </div>
+
+    <!-- TOP 5 GLOBAL RISKS SECTION -->
+    <div class="top5-section" id="top5Section" style="display:none;">
+      <div class="section-header">Top 5 Global Risks Right Now <span class="last-updated" id="top5Updated"></span></div>
+      <div class="top5-grid" id="top5Grid"></div>
+    </div>
+
     <!-- NEWS SECTION HEADER -->
-    <div class="section-header" id="newsHeader">Latest Intelligence</div>
+    <div class="section-header" id="newsHeader">Latest Intelligence <span class="last-updated" id="newsLastUpdated"></span></div>
 
     <!-- NEWS GRID -->
     <div id="newsGrid">
@@ -396,25 +462,69 @@
     } catch(e) {}
   }
 
-  // ── TOP 5 RISKS BAR ──
+  // ── TOP 5 RISKS: BAR + PROMINENT SECTION + ALERTS ──
+  function minutesAgo(ts) {
+    const diff = Math.floor((Date.now() - ts) / 60000);
+    return diff < 1 ? 'just now' : `${diff}m ago`;
+  }
+  let topRisksLoadedAt = null;
+
   async function loadTopRisks() {
     try {
       const res = await fetch('/api/top-risks');
       const d = await res.json();
-      if(!d.success || !d.risks.length) return;
+      if(!d.success) return;
+      topRisksLoadedAt = Date.now();
+
+      // ── PILL BAR (existing) ──
       const bar = document.getElementById('topRisksBar');
-      const pills = d.risks.map((r,i) => {
+      const pills = (d.risks||[]).map((r,i) => {
         const cfg = getRiskConfig(r.level);
-        const score = r.risk_score || 0;
-        return `<div class="risk-pill" onclick="openGlobalMap()" title="Click to open risk map">
+        return `<div class="risk-pill" onclick="openGlobalMap()" title="${r.country} — Score ${r.risk_score}">
           <span class="risk-pill-rank">#${i+1}</span>
           <span class="risk-pill-country">${r.country}</span>
-          <span class="risk-pill-score" style="color:${cfg.hex}">${score}</span>
+          <span class="risk-pill-score" style="color:${cfg.hex}">${r.risk_score||0}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:0.55rem;color:${cfg.hex};">${{increasing:'↑',stable:'→',decreasing:'↓'}[r.risk_trend]||'→'}</span>
         </div>`;
       }).join('');
-      bar.innerHTML = `<span class="top-risks-label">⬆ Top Risks Now</span>${pills}
-        <span style="color:#333;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;margin-left:auto;white-space:nowrap;cursor:pointer;" onclick="openGlobalMap()">VIEW MAP →</span>`;
-    } catch(e) {}
+      bar.innerHTML = `<span class="top-risks-label">⬆ Top Risks</span>${pills}
+        <span style="color:#333;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;margin-left:auto;white-space:nowrap;cursor:pointer;" onclick="openGlobalMap()">MAP →</span>`;
+
+      // ── PROMINENT SECTION ──
+      const section = document.getElementById('top5Section');
+      const grid = document.getElementById('top5Grid');
+      if(d.risks && d.risks.length) {
+        section.style.display = 'block';
+        document.getElementById('top5Updated').textContent = 'Updated ' + minutesAgo(topRisksLoadedAt);
+        grid.innerHTML = d.risks.map((r,i) => {
+          const cfg = getRiskConfig(r.level);
+          const trendArrow = {increasing:'↑ Rising',stable:'→ Stable',decreasing:'↓ Easing'}[r.risk_trend]||'→ Stable';
+          const trendCls = `trend-${r.risk_trend||'stable'}`;
+          const threats = (r.threats||[]).map(t=>`<span class="threat-pill" style="font-size:0.52rem;">${t}</span>`).join('');
+          return `<div class="top5-card ${r.level}" onclick="openGlobalMap()" style="cursor:pointer;" title="Click to open map">
+            <div class="top5-rank">#${i+1} RISK</div>
+            <div class="top5-country">${r.country}</div>
+            <div class="top5-score-row">
+              <span class="top5-score-num" style="color:${cfg.hex};">${r.risk_score||0}</span>
+              <span class="top5-score-denom">/100</span>
+            </div>
+            <span class="trend-badge ${trendCls}" style="font-size:0.58rem;">${trendArrow}</span>
+            ${threats ? `<div class="top5-threats">${threats}</div>` : ''}
+          </div>`;
+        }).join('');
+      }
+
+      // ── BREAKING ALERTS ──
+      const banner = document.getElementById('alertBanner');
+      const alertText = document.getElementById('alertText');
+      if(d.alerts && d.alerts.length) {
+        const a = d.alerts[0];
+        alertText.innerHTML = `<span class="alert-country">${a.country}</span> — ${a.headline} <span style="color:#555;font-size:0.75rem;">(Risk score: ${a.score})</span>`;
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    } catch(e) { console.warn('loadTopRisks:', e); }
   }
 
   // ── GLOBAL RISK BRIEF ──
@@ -468,7 +578,7 @@
       </div>` : '';
     const nextTriggers = a.next_triggers ? `
       <div class="card-intel">
-        <div class="card-intel-label intel">⟳ Watch Next 24–72h</div>
+        <div class="card-intel-label intel">⟳ Watch 24–72h</div>
         <div class="card-intel-text">${a.next_triggers}</div>
       </div>` : '';
     const whyMatters = a.why_this_matters ? `
@@ -476,10 +586,13 @@
         <div class="card-intel-label intel" style="color:#aaa;">◈ Why It Matters</div>
         <div class="card-intel-text" style="color:#bbb;font-style:italic;">${a.why_this_matters}</div>
       </div>` : '';
-
+    const safeTitle = (a.title||'').replace(/'/g, "\'").replace(/"/g, '&quot;');
     return `<div class="card">
       <a href="${a.url}" target="_blank" class="card-title">${a.title}</a>
-      ${a.importance ? `<span class="importance-badge ${a.importance}">${a.importance} importance</span>` : ''}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:0.7rem;flex-wrap:wrap;">
+        ${a.importance ? `<span class="importance-badge ${a.importance}">${a.importance}</span>` : ''}
+        <span class="cred-badge cred-${a.credibility||'Low'}" style="font-size:0.52rem;">${a.credibility||'Low'} credibility${a.source_count>1?' · '+a.source_count+' sources':''}</span>
+      </div>
       <div class="card-summary">${a.summary||''}</div>
       ${tagsHtml}
       ${confHtml}
@@ -494,9 +607,9 @@
       ${whyMatters}
       ${nextTriggers}
       <div class="card-meta">
-        <span>${a.source||''} · ${a.time||''}</span>
+        <span style="color:#555;">${a.source||''} · ${a.time||''}</span>
         <div style="display:flex;gap:12px;align-items:center;">
-          <button class="share-btn" onclick="openShare('${a.url}','${(a.title||'').replace(/'/g,"\\\'")}')">SHARE</button>
+          <button class="share-btn" onclick="openShare('${a.url}','${safeTitle}')">SHARE</button>
           <span><span class="pulse-dot"></span>LIVE</span>
         </div>
       </div>
@@ -520,6 +633,7 @@
         return;
       }
       document.getElementById('newsGrid').innerHTML = `<div class="grid">${data.articles.map(buildCard).join('')}</div>`;
+      document.getElementById('newsLastUpdated').textContent = 'Updated ' + minutesAgo(Date.now());
       updateBriefing();
     } catch(e) {
       document.getElementById('newsGrid').innerHTML = `<div style="color:#ff6b6b;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;padding:2rem;">FEED ERROR — RETRYING...</div>`;
@@ -623,6 +737,13 @@
         // Click → country panel
         circle.on('click', () => openCountryPanel(country, info));
 
+        // Trend indicator marker
+        const trendArrow = {increasing:'↑',stable:'→',decreasing:'↓'}[info.risk_trend||'stable'];
+        const trendColor = {increasing:'#ff6b6b',stable:'#e8c547',decreasing:'#2dff7a'}[info.risk_trend||'stable'];
+        const trendIcon = L.divIcon({className:'', html:`<div style="font-family:'IBM Plex Mono',monospace;font-size:0.9rem;color:${trendColor};font-weight:700;text-shadow:0 0 6px rgba(0,0,0,0.9);pointer-events:none;">${trendArrow}</div>`, iconSize:[16,16], iconAnchor:[8,8]});
+        const trendMarker = L.marker([coords[0]+1.5, coords[1]+2.5], {icon:trendIcon, interactive:false}).addTo(riskMap);
+        trendMarker._isRiskMarker = true;
+
         // Country label
         const labelIcon = L.divIcon({className:'', html:`<div class="map-country-label map-label-${level}">${country}</div>`, iconAnchor:[0,0]});
         const label = L.marker(coords, {icon:labelIcon, interactive:false});
@@ -649,6 +770,30 @@
                     level === 'low'      ? 'Manageable risk. Situation stable but requires ongoing monitoring.' :
                     'No significant risk indicators detected in current intelligence cycle.';
 
+    const bd = info.breakdown || {};
+    const breakdownHtml = (bd.conflict !== undefined) ? `
+      <div class="cp-row">
+        <div class="cp-lbl">Risk Breakdown</div>
+        <div class="breakdown-grid">
+          <div class="breakdown-item">
+            <div class="breakdown-lbl"><span>Conflict</span><span>${bd.conflict||0}</span></div>
+            <div class="breakdown-bar-wrap"><div class="breakdown-bar breakdown-conflict" style="width:${bd.conflict||0}%"></div></div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-lbl"><span>Political</span><span>${bd.political||0}</span></div>
+            <div class="breakdown-bar-wrap"><div class="breakdown-bar breakdown-political" style="width:${bd.political||0}%"></div></div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-lbl"><span>Economic</span><span>${bd.economic||0}</span></div>
+            <div class="breakdown-bar-wrap"><div class="breakdown-bar breakdown-economic" style="width:${bd.economic||0}%"></div></div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-lbl"><span>Intensity</span><span>${bd.intensity||0}</span></div>
+            <div class="breakdown-bar-wrap"><div class="breakdown-bar breakdown-intensity" style="width:${bd.intensity||0}%"></div></div>
+          </div>
+        </div>
+      </div>` : '';
+
     document.getElementById('countryPanelBody').innerHTML = `
       <div class="cp-header">
         <button class="cp-close" onclick="closeCountryPanel()">✕ Close</button>
@@ -665,6 +810,7 @@
           <div class="trend-badge ${trendClass}">${trendArrow} ${info.risk_trend||'stable'}</div>
         </div>
       </div>
+      ${breakdownHtml}
       <div class="cp-row">
         <div class="cp-lbl">Top Threats</div>
         <div>${threats}</div>
