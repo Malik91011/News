@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PULSE — Real-Time Global RISK</title>
+  <title>PULSE — Real-Time News Dashboard</title>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6728583776495081" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #050505; --card-bg: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1);
@@ -245,6 +246,44 @@
     .card { box-shadow: 0 2px 20px rgba(0,0,0,0.4); }
     .card:hover { box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
 
+    /* ── AUTH MODAL ── */
+    .auth-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); backdrop-filter:blur(20px); z-index:5000; justify-content:center; align-items:center; }
+    .auth-overlay.open { display:flex; }
+    .auth-box { background:#0a0a0a; border:1px solid var(--border); border-radius:14px; padding:3rem; width:420px; max-width:95vw; position:relative; }
+    .auth-logo { font-family:'Playfair Display',serif; font-size:1.6rem; color:var(--accent); margin-bottom:0.3rem; }
+    .auth-sub { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:2px; margin-bottom:2.5rem; }
+    .auth-tabs { display:flex; gap:0; margin-bottom:2rem; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+    .auth-tab { flex:1; background:none; border:none; color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:0.7rem; padding:10px; cursor:pointer; text-transform:uppercase; letter-spacing:1px; transition:0.2s; }
+    .auth-tab.active { background:var(--accent); color:#000; font-weight:700; }
+    .auth-field { margin-bottom:1.2rem; }
+    .auth-field label { display:block; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+    .auth-field input { width:100%; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:6px; padding:12px 16px; color:#fff; font-size:0.9rem; outline:none; transition:border-color 0.2s; font-family:'IBM Plex Sans',sans-serif; }
+    .auth-field input:focus { border-color:rgba(232,197,71,0.5); }
+    .auth-btn { width:100%; background:var(--accent); border:none; color:#000; font-family:'IBM Plex Mono',monospace; font-size:0.8rem; font-weight:700; padding:14px; border-radius:6px; cursor:pointer; text-transform:uppercase; letter-spacing:1px; margin-top:0.5rem; transition:opacity 0.2s; }
+    .auth-btn:hover { opacity:0.85; }
+    .auth-btn:disabled { opacity:0.4; cursor:not-allowed; }
+    .auth-msg { font-family:'IBM Plex Mono',monospace; font-size:0.7rem; margin-top:1rem; padding:10px 14px; border-radius:5px; text-align:center; display:none; }
+    .auth-msg.error { background:rgba(255,45,45,0.1); border:1px solid rgba(255,45,45,0.3); color:#ff8080; display:block; }
+    .auth-msg.success { background:rgba(45,255,122,0.1); border:1px solid rgba(45,255,122,0.3); color:#2dff7a; display:block; }
+    .auth-close { position:absolute; top:1.2rem; right:1.5rem; background:none; border:none; color:var(--muted); font-size:1.2rem; cursor:pointer; line-height:1; }
+    .auth-close:hover { color:#fff; }
+    .auth-divider { text-align:center; font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#333; margin:1.5rem 0; }
+
+    /* ── PROFILE BUTTON ── */
+    .profile-btn { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:50px; padding:8px 16px; cursor:pointer; transition:all 0.2s; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; color:var(--muted); white-space:nowrap; }
+    .profile-btn:hover { border-color:rgba(232,197,71,0.4); color:#fff; }
+    .profile-btn.logged-in { border-color:rgba(232,197,71,0.4); color:var(--accent); }
+    .profile-avatar { width:26px; height:26px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:#000; flex-shrink:0; }
+
+    /* ── PROFILE DROPDOWN ── */
+    .profile-dropdown { position:absolute; top:calc(100% + 10px); right:0; background:#0c0c0c; border:1px solid var(--border); border-radius:10px; padding:0.5rem; min-width:220px; z-index:2000; box-shadow:0 8px 40px rgba(0,0,0,0.8); }
+    .profile-dropdown-wrap { position:relative; }
+    .pd-email { font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--muted); padding:8px 12px; border-bottom:1px solid var(--border); margin-bottom:0.3rem; overflow:hidden; text-overflow:ellipsis; }
+    .pd-item { display:block; width:100%; background:none; border:none; color:#ccc; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; padding:10px 12px; text-align:left; cursor:pointer; border-radius:6px; text-transform:uppercase; letter-spacing:1px; transition:background 0.15s; }
+    .pd-item:hover { background:rgba(255,255,255,0.06); }
+    .pd-item.danger { color:#ff6b6b; }
+    .pd-item.danger:hover { background:rgba(255,45,45,0.1); }
+
     /* ── SHARE ── */
     .share-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); z-index:2000; justify-content:center; align-items:center; }
     .share-menu { background:#0a0a0a; border:1px solid var(--border); border-radius:12px; padding:2.5rem; width:340px; text-align:center; }
@@ -257,9 +296,22 @@
 <!-- HEADER -->
 <header>
   <div class="logo">PULSE<span>.</span></div>
-  <div class="search-container">
-    <input type="text" id="searchInput" placeholder="Search keywords..." onkeypress="if(event.key==='Enter') searchNews()">
-    <button onclick="searchNews()">Search</button>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <div class="search-container">
+      <input type="text" id="searchInput" placeholder="Search keywords..." onkeypress="if(event.key==='Enter') searchNews()">
+      <button onclick="searchNews()">Search</button>
+    </div>
+    <div class="profile-dropdown-wrap" id="profileWrap">
+      <div class="profile-btn" id="profileBtn" onclick="toggleProfileDropdown()">
+        <div class="profile-avatar" id="profileAvatar">?</div>
+        <span id="profileBtnText">Sign In</span>
+      </div>
+      <div class="profile-dropdown" id="profileDropdown" style="display:none;">
+        <div class="pd-email" id="pdEmail">Not signed in</div>
+        <button class="pd-item" onclick="closeProfileDropdown();openAuth('login')">Sign In</button>
+        <button class="pd-item" onclick="closeProfileDropdown();openAuth('signup')">Create Account</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -355,6 +407,50 @@
     <div class="country-panel" id="countryPanel">
       <div class="country-panel-inner" id="countryPanelBody"></div>
     </div>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <button class="auth-close" onclick="closeAuth()">✕</button>
+    <div class="auth-logo">PULSE<span style="color:#fff;">.</span></div>
+    <div class="auth-sub">Intelligence Dashboard</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Create Account</button>
+    </div>
+    <!-- LOGIN FORM -->
+    <div id="formLogin">
+      <div class="auth-field">
+        <label>Email Address</label>
+        <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="auth-btn" id="loginBtn" onclick="doLogin()">Access Dashboard</button>
+      <div class="auth-msg" id="loginMsg"></div>
+    </div>
+    <!-- SIGNUP FORM -->
+    <div id="formSignup" style="display:none;">
+      <div class="auth-field">
+        <label>Full Name</label>
+        <input type="text" id="signupName" placeholder="Your name" autocomplete="name">
+      </div>
+      <div class="auth-field">
+        <label>Email Address</label>
+        <input type="email" id="signupEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="signupPassword" placeholder="Min. 6 characters" autocomplete="new-password">
+      </div>
+      <button class="auth-btn" id="signupBtn" onclick="doSignup()">Create Account</button>
+      <div class="auth-msg" id="signupMsg"></div>
+    </div>
+    <div class="auth-divider">No account required to read the dashboard</div>
   </div>
 </div>
 
@@ -890,10 +986,170 @@
     loadContent();
     loadGlobalBrief();
     loadTopRisks();
+    initAuth();
   }
 
   window.onload = init;
 </script>
+
+  // ═══════════════════════════════════════
+  //  SUPABASE AUTH
+  // ═══════════════════════════════════════
+  const SUPA_URL = 'https://gzquohacbrkzahpgifll.supabase.co';
+  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cXVvaGFjYnJremFocGdpZmxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMzQwNTIsImV4cCI6MjA5MjcxMDA1Mn0.Wva3PMJN-IYTTuRm4Bh55K4IHrr-ubvLJ9J3G4dvLlQ';
+  const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+  let currentUser = null;
+
+  // ── Auth state listener ──
+  supa.auth.onAuthStateChange((event, session) => {
+    currentUser = session ? session.user : null;
+    updateProfileUI();
+    if (event === 'SIGNED_IN') closeAuth();
+  });
+
+  async function initAuth() {
+    const { data } = await supa.auth.getSession();
+    currentUser = data.session ? data.session.user : null;
+    updateProfileUI();
+  }
+
+  function updateProfileUI() {
+    const btn    = document.getElementById('profileBtn');
+    const avatar = document.getElementById('profileAvatar');
+    const text   = document.getElementById('profileBtnText');
+    const dd     = document.getElementById('profileDropdown');
+    const email  = document.getElementById('pdEmail');
+
+    if (currentUser) {
+      const initial = (currentUser.email||'U')[0].toUpperCase();
+      avatar.textContent = initial;
+      text.textContent   = currentUser.email.split('@')[0];
+      btn.classList.add('logged-in');
+      email.textContent  = currentUser.email;
+      dd.innerHTML = `
+        <div class="pd-email">${currentUser.email}</div>
+        <button class="pd-item" disabled style="color:#555;cursor:default;">
+          ✓ Signed In
+        </button>
+        <button class="pd-item danger" onclick="doLogout()">Sign Out</button>`;
+    } else {
+      avatar.textContent = '✦';
+      text.textContent   = 'Sign In';
+      btn.classList.remove('logged-in');
+      dd.innerHTML = `
+        <div class="pd-email">Not signed in</div>
+        <button class="pd-item" onclick="closeProfileDropdown();openAuth('login')">Sign In</button>
+        <button class="pd-item" onclick="closeProfileDropdown();openAuth('signup')">Create Account</button>`;
+    }
+  }
+
+  // ── Modal controls ──
+  function openAuth(tab = 'login') {
+    document.getElementById('authOverlay').classList.add('open');
+    switchAuthTab(tab);
+    setTimeout(() => {
+      const el = tab === 'login'
+        ? document.getElementById('loginEmail')
+        : document.getElementById('signupName');
+      if (el) el.focus();
+    }, 100);
+  }
+
+  function closeAuth() {
+    document.getElementById('authOverlay').classList.remove('open');
+    clearAuthMsgs();
+  }
+
+  function switchAuthTab(tab) {
+    document.getElementById('formLogin').style.display   = tab === 'login'  ? 'block' : 'none';
+    document.getElementById('formSignup').style.display  = tab === 'signup' ? 'block' : 'none';
+    document.getElementById('tabLogin').classList.toggle('active',  tab === 'login');
+    document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
+  }
+
+  function clearAuthMsgs() {
+    ['loginMsg','signupMsg'].forEach(id => {
+      const el = document.getElementById(id);
+      el.className = 'auth-msg';
+      el.textContent = '';
+    });
+  }
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = `auth-msg ${type}`;
+  }
+
+  // ── Login ──
+  async function doLogin() {
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const btn      = document.getElementById('loginBtn');
+    if (!email || !password) { showMsg('loginMsg', 'Email and password required.', 'error'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Signing in...';
+    const { error } = await supa.auth.signInWithPassword({ email, password });
+    btn.disabled = false;
+    btn.textContent = 'Access Dashboard';
+    if (error) {
+      showMsg('loginMsg', error.message, 'error');
+    } else {
+      showMsg('loginMsg', 'Welcome back.', 'success');
+    }
+  }
+
+  // ── Signup ──
+  async function doSignup() {
+    const name     = document.getElementById('signupName').value.trim();
+    const email    = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const btn      = document.getElementById('signupBtn');
+    if (!email || !password) { showMsg('signupMsg', 'Email and password required.', 'error'); return; }
+    if (password.length < 6)  { showMsg('signupMsg', 'Password must be at least 6 characters.', 'error'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+    const { error } = await supa.auth.signUp({
+      email, password,
+      options: { data: { full_name: name } }
+    });
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
+    if (error) {
+      showMsg('signupMsg', error.message, 'error');
+    } else {
+      showMsg('signupMsg', 'Account created. You are now signed in.', 'success');
+    }
+  }
+
+  // ── Logout ──
+  async function doLogout() {
+    await supa.auth.signOut();
+    closeProfileDropdown();
+  }
+
+  // ── Profile dropdown ──
+  function toggleProfileDropdown() {
+    const dd = document.getElementById('profileDropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function closeProfileDropdown() {
+    document.getElementById('profileDropdown').style.display = 'none';
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    const wrap = document.getElementById('profileWrap');
+    if (wrap && !wrap.contains(e.target)) closeProfileDropdown();
+  });
+
+  // Close auth on ESC (extend existing keydown)
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeAuth(); closeProfileDropdown(); }
+  });
+
 {% endraw %}
 </body>
 </html>
