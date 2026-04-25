@@ -1004,15 +1004,17 @@
   // ── Auth state listener ──
   supa.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
-    updateProfileUI();
     if (event === 'SIGNED_IN' || event === 'SIGNED_UP') {
-      closeAuth();
-      // Reset button states
+      // Reset buttons first
       const lb = document.getElementById('loginBtn');
       const sb = document.getElementById('signupBtn');
       if (lb) { lb.disabled = false; lb.textContent = 'Access Dashboard'; }
       if (sb) { sb.disabled = false; sb.textContent = 'Create Account'; }
+      // Force close modal
+      document.getElementById('authOverlay').classList.remove('open');
+      clearAuthMsgs();
     }
+    updateProfileUI();
   });
 
   async function initAuth() {
@@ -1026,19 +1028,17 @@
     const avatar = document.getElementById('profileAvatar');
     const text   = document.getElementById('profileBtnText');
     const dd     = document.getElementById('profileDropdown');
-    const email  = document.getElementById('pdEmail');
+    if (!btn || !avatar || !text || !dd) return;
 
-    if (currentUser) {
-      const initial = (currentUser.email||'U')[0].toUpperCase();
+    if (currentUser && currentUser.email) {
+      const initial = currentUser.email[0].toUpperCase();
+      const username = currentUser.email.split('@')[0];
       avatar.textContent = initial;
-      text.textContent   = currentUser.email.split('@')[0];
+      text.textContent   = username;
       btn.classList.add('logged-in');
-      email.textContent  = currentUser.email;
       dd.innerHTML = `
-        <div class="pd-email">${currentUser.email}</div>
-        <button class="pd-item" disabled style="color:#555;cursor:default;">
-          ✓ Signed In
-        </button>
+        <div class="pd-email" style="word-break:break-all;">${currentUser.email}</div>
+        <button class="pd-item" style="color:#2dff7a;cursor:default;" disabled>✓ Signed In</button>
         <button class="pd-item danger" onclick="doLogout()">Sign Out</button>`;
     } else {
       avatar.textContent = '✦';
@@ -1104,8 +1104,14 @@
       btn.disabled = false;
       btn.textContent = 'Access Dashboard';
       showMsg('loginMsg', error.message, 'error');
+    } else {
+      // Fallback: force close after 1.5s if onAuthStateChange is slow
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = 'Access Dashboard';
+        document.getElementById('authOverlay').classList.remove('open');
+      }, 1500);
     }
-    // on success, onAuthStateChange fires and closes modal + resets button
   }
 
   // ── Signup ──
@@ -1128,8 +1134,13 @@
       btn.disabled = false;
       btn.textContent = 'Create Account';
       showMsg('signupMsg', error.message, 'error');
+    } else {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        document.getElementById('authOverlay').classList.remove('open');
+      }, 1500);
     }
-    // on success, onAuthStateChange fires and closes modal + resets button
   }
 
   // ── Logout ──
