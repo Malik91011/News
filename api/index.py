@@ -4,7 +4,7 @@ import feedparser
 import time
 import requests
 import logging
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, Response
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def cache_set(key, value):
 
 # ─── APP ─────────────────────────────────────────────────────
 base_dir = os.path.dirname(os.path.abspath(__file__))
-app = Flask(__name__)
+app = Flask(__name__, static_folder=base_dir, static_url_path='')
 
 # ─── API KEYS ────────────────────────────────────────────────
 GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
@@ -741,7 +741,10 @@ def calculate_risk():
 
 @app.route("/")
 def home():
-    return send_from_directory(base_dir, "index.html")
+    html_path = os.path.join(base_dir, "index.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    return Response(html, mimetype="text/html")
 
 @app.route("/api/news")
 def news():
