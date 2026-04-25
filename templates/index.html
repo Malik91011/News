@@ -584,7 +584,7 @@
           <span class="risk-pill-rank">#${i+1}</span>
           <span class="risk-pill-country">${r.country}</span>
           <span class="risk-pill-score" style="color:${cfg.hex}">${r.risk_score||0}</span>
-          <span style="font-family:'IBM Plex Mono',monospace;font-size:0.55rem;color:${cfg.hex};">${{increasing:'↑',stable:'→',decreasing:'↓'}[r.risk_trend]||'→'}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:0.55rem;color:${cfg.hex};">${ ({'increasing':'↑','stable':'→','decreasing':'↓'})[r.risk_trend]||'→'}</span>
         </div>`;
       }).join('');
       bar.innerHTML = `<span class="top-risks-label">⬆ Top Risks</span>${pills}
