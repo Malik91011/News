@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PULSE — Real-Time News Dashboard</title>
+  <title>PULSE — Real-Time Global Risk</title>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6728583776495081" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
@@ -1005,7 +1005,14 @@
   supa.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     updateProfileUI();
-    if (event === 'SIGNED_IN') closeAuth();
+    if (event === 'SIGNED_IN' || event === 'SIGNED_UP') {
+      closeAuth();
+      // Reset button states
+      const lb = document.getElementById('loginBtn');
+      const sb = document.getElementById('signupBtn');
+      if (lb) { lb.disabled = false; lb.textContent = 'Access Dashboard'; }
+      if (sb) { sb.disabled = false; sb.textContent = 'Create Account'; }
+    }
   });
 
   async function initAuth() {
@@ -1094,10 +1101,11 @@
     btn.disabled = false;
     btn.textContent = 'Access Dashboard';
     if (error) {
+      btn.disabled = false;
+      btn.textContent = 'Access Dashboard';
       showMsg('loginMsg', error.message, 'error');
-    } else {
-      showMsg('loginMsg', 'Welcome back.', 'success');
     }
+    // on success, onAuthStateChange fires and closes modal + resets button
   }
 
   // ── Signup ──
@@ -1117,10 +1125,11 @@
     btn.disabled = false;
     btn.textContent = 'Create Account';
     if (error) {
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
       showMsg('signupMsg', error.message, 'error');
-    } else {
-      showMsg('signupMsg', 'Account created. You are now signed in.', 'success');
     }
+    // on success, onAuthStateChange fires and closes modal + resets button
   }
 
   // ── Logout ──
