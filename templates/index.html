@@ -470,7 +470,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-  const CATEGORIES = {{ categories | tojson }};
+  const CATEGORIES = ["Pakistan","World","Politics","Technology","Business","Sports"];
   let activeCategory = "Pakistan";
   let currentShareUrl = "";
   let riskMap = null;
@@ -991,6 +991,7 @@
   window.onload = init;
 </script>
 
+<script>
   // ═══════════════════════════════════════
   //  SUPABASE AUTH
   // ═══════════════════════════════════════
@@ -1144,10 +1145,10 @@
     if (wrap && !wrap.contains(e.target)) closeProfileDropdown();
   });
 
-  // Close auth on ESC (extend existing keydown)
+  // Close auth on ESC
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeAuth(); closeProfileDropdown(); }
   });
-
+</script>
 </body>
 </html>
