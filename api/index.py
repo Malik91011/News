@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # ─── IN-MEMORY CACHE ─────────────────────────────────────────
 _cache = {}
 CACHE_TTL = 300  # 5 minutes
-CACHE_VERSION = "v4"
+CACHE_VERSION = "v5"
 
 def cache_get(key):
     entry = _cache.get(CACHE_VERSION + key)
@@ -167,10 +167,10 @@ def call_openrouter(prompt, temperature=0.3, max_tokens=1024):
     if not OPENROUTER_API_KEY:
         raise ValueError("OPENROUTER_API_KEY not set")
     models = [
-        "meta-llama/llama-4-scout:free",
-        "meta-llama/llama-4-maverick:free",
-        "google/gemma-3-27b-it:free",
-        "mistralai/mistral-small-3.1-24b-instruct:free",
+        "mistralai/mistral-7b-instruct:free",
+        "google/gemma-2-9b-it:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "qwen/qwen-2.5-7b-instruct:free",
     ]
     last_err = None
     for model in models:
@@ -224,24 +224,22 @@ def extract_json_array(text):
 
 def extract_json_object(text):
     """Robustly extract JSON object from any LLM response format."""
-    import re
+    import re, ast
     text = text.strip()
-    
-    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+
+    # Strip markdown code fences
     if "```" in text:
-        # Try to extract content between fences
         fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
         if fence_match:
-            text = fence_match.group(1)
+            text = fence_match.group(1).strip()
         else:
-            # Split by fence and find JSON part
             for part in text.split("```"):
                 part = part.strip().lstrip("json").strip()
                 if part.startswith("{"):
                     text = part
                     break
 
-    # Find outermost { } 
+    # Find outermost { }
     depth = 0
     start = -1
     for i, ch in enumerate(text):
@@ -253,17 +251,31 @@ def extract_json_object(text):
             depth -= 1
             if depth == 0 and start != -1:
                 candidate = text[start:i+1]
+                # Try 1: standard JSON parse
                 try:
                     return json.loads(candidate)
                 except json.JSONDecodeError:
-                    # Try fixing common issues: trailing commas, single quotes
-                    fixed = re.sub(r",\s*}", "}", candidate)
-                    fixed = re.sub(r",\s*]", "]", fixed)
-                    try:
-                        return json.loads(fixed)
-                    except:
-                        pass
-    raise ValueError(f"No valid JSON object found in: {text[:100]}")
+                    pass
+                # Try 2: fix trailing commas
+                try:
+                    fixed = re.sub(r",(\s*[}\]])", r"", candidate)
+                    return json.loads(fixed)
+                except:
+                    pass
+                # Try 3: single quotes → double quotes (GROQ sometimes returns this)
+                try:
+                    fixed = candidate.replace("'", '"')
+                    return json.loads(fixed)
+                except:
+                    pass
+                # Try 4: Python literal eval (handles single-quoted dicts)
+                try:
+                    result = ast.literal_eval(candidate)
+                    if isinstance(result, dict):
+                        return result
+                except:
+                    pass
+    raise ValueError(f"No valid JSON object found in: {text[:200]}")
 
 # ── LOCAL FALLBACK ───────────────────────────────────────────
 RISK_WORDS   = {"war","attack","bomb","conflict","killed","explosion","crisis",
