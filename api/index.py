@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # ─── IN-MEMORY CACHE ─────────────────────────────────────────
 _cache = {}
 CACHE_TTL = 300  # 5 minutes
-CACHE_VERSION = "v5"
+CACHE_VERSION = "v1778760280"
 
 def cache_get(key):
     entry = _cache.get(CACHE_VERSION + key)
