@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # ─── IN-MEMORY CACHE ─────────────────────────────────────────
 _cache = {}
 CACHE_TTL = 300  # 5 minutes
-CACHE_VERSION = "v3"
+CACHE_VERSION = "v4"
 
 def cache_get(key):
     entry = _cache.get(CACHE_VERSION + key)
@@ -223,17 +223,47 @@ def extract_json_array(text):
     raise ValueError("No JSON array found")
 
 def extract_json_object(text):
+    """Robustly extract JSON object from any LLM response format."""
+    import re
     text = text.strip()
+    
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
     if "```" in text:
-        for part in text.split("```"):
-            part = part.strip().lstrip("json").strip()
-            if part.startswith("{"):
-                text = part
-                break
-    s, e = text.find("{"), text.rfind("}") + 1
-    if s != -1 and e > s:
-        return json.loads(text[s:e])
-    raise ValueError("No JSON object found")
+        # Try to extract content between fences
+        fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if fence_match:
+            text = fence_match.group(1)
+        else:
+            # Split by fence and find JSON part
+            for part in text.split("```"):
+                part = part.strip().lstrip("json").strip()
+                if part.startswith("{"):
+                    text = part
+                    break
+
+    # Find outermost { } 
+    depth = 0
+    start = -1
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start != -1:
+                candidate = text[start:i+1]
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    # Try fixing common issues: trailing commas, single quotes
+                    fixed = re.sub(r",\s*}", "}", candidate)
+                    fixed = re.sub(r",\s*]", "]", fixed)
+                    try:
+                        return json.loads(fixed)
+                    except:
+                        pass
+    raise ValueError(f"No valid JSON object found in: {text[:100]}")
 
 # ── LOCAL FALLBACK ───────────────────────────────────────────
 RISK_WORDS   = {"war","attack","bomb","conflict","killed","explosion","crisis",
@@ -353,7 +383,7 @@ def analyze_one(title):
         "why_this_matters: max 10 words, punchy and specific\n"
         "p: 1 actionable advisory (max 18 words, use: monitor/avoid/track/verify/reassess)\n"
         "bias: neutral|slightly_left|slightly_right|unknown\n"
-        "No markdown. Return only the JSON object starting with {"
+        "IMPORTANT: Return ONLY the raw JSON object. No markdown, no code fences, no explanation. Start your response with { and end with }"
     )
     # GROQ and Google AI Studio are primary — fast, free, reliable
     for fn, name in [
