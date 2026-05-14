@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # ─── IN-MEMORY CACHE ─────────────────────────────────────────
 _cache = {}
 CACHE_TTL = 300  # 5 minutes
-CACHE_VERSION = "v2"
+CACHE_VERSION = "v3"
 
 def cache_get(key):
     entry = _cache.get(CACHE_VERSION + key)
@@ -365,11 +365,13 @@ def analyze_one(title):
     ]:
         try:
             raw = fn(prompt, temperature=0.2, max_tokens=400)
+            logger.info(f"[RAW {name}]: {raw[:120]}")
             obj = extract_json_object(raw)
             logger.info(f"analyze_one OK via {name}: {title[:40]}")
             return obj
         except Exception as e:
-            logger.warning(f"{name} analyze_one failed: {e}")
+            logger.warning(f"{name} analyze_one FAILED ({type(e).__name__}): {e}")
+    logger.error(f"ALL APIs failed for: {title[:60]}")
     return None
 
 def task_overall_summary(headlines):
@@ -378,7 +380,7 @@ def task_overall_summary(headlines):
     if not titles:
         return "Intelligence feed synchronized."
     prompt = (
-        "You are a world news anchor. Based on these headlines, write TWO sharp factual "
+        "You are a world news anchor. Based on these headlines, write ONE sharp factual "
         "25-word sentence summarizing the most important global story right now. "
         "Be specific. No filler phrases. Return only the sentence, nothing else.\n\n"
         "Headlines:\n" + "\n".join(titles)
@@ -471,7 +473,7 @@ def orchestrate(headlines, category):
             "time":               h["published"],
         }
         results.append(article)
-        time.sleep(0.3)  # Stay within free tier RPM limits
+        time.sleep(1.0)  # Stay within free tier RPM limits
 
     cache_set(cache_key, results)
     logger.info(f"Orchestration complete for {category}, cached.")
@@ -575,7 +577,7 @@ def get_live_headlines(category, query=None):
             "source_count": source_count,
             "credibility":  credibility,
         })
-        if len(result) >= 8:
+        if len(result) >= 4:
             break
 
     return result
@@ -745,6 +747,17 @@ def clear_cache():
     _cache.clear()
     logger.info("Cache manually cleared")
     return jsonify({"success": True, "message": "Cache cleared"})
+
+@app.route("/api/status")
+def status():
+    """Check which API keys are configured."""
+    return jsonify({
+        "GROQ": bool(GROQ_API_KEY),
+        "GOOGLE_AI": bool(GOOGLE_AI_KEY),
+        "GEMINI": bool(GEMINI_API_KEY),
+        "DEEPSEEK": bool(DEEPSEEK_API_KEY),
+        "OPENROUTER": bool(OPENROUTER_API_KEY),
+    })
 
 @app.route("/")
 def home():
