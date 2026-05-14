@@ -735,6 +735,12 @@
       document.getElementById('newsGrid').innerHTML = `<div class="grid">${data.articles.map(buildCard).join('')}</div>`;
       const nlu = document.getElementById('newsLastUpdated'); if(nlu) nlu.textContent = 'Updated ' + minutesAgo(Date.now());
       updateBriefing();
+      // If this was a search, scroll to results after cards render
+      if(query) {
+        setTimeout(() => {
+          document.getElementById('newsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
+      }
     } catch(e) {
       console.error('loadContent error:', e);
       document.getElementById('newsGrid').innerHTML = `<div style="color:#ff6b6b;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;padding:2rem;">FEED ERROR — RETRYING...<br><small style="color:#555;">${e.message||e}</small></div>`;
@@ -790,6 +796,8 @@
     if(!q) return;
     showSkeleton();
     document.getElementById('newsHeader').textContent = `Searching "${q}"...`;
+    // Scroll to results smoothly
+    document.getElementById('newsHeader').scrollIntoView({ behavior: 'smooth', block: 'start' });
     loadContent(encodeURIComponent(q));
   }
 
