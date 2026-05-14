@@ -12,16 +12,17 @@ logger = logging.getLogger(__name__)
 # ─── IN-MEMORY CACHE ─────────────────────────────────────────
 _cache = {}
 CACHE_TTL = 300  # 5 minutes
+CACHE_VERSION = "v2"
 
 def cache_get(key):
-    entry = _cache.get(key)
+    entry = _cache.get(CACHE_VERSION + key)
     if entry and (time.time() - entry[0]) < CACHE_TTL:
         logger.info(f"Cache HIT: {key}")
         return entry[1]
     return None
 
 def cache_set(key, value):
-    _cache[key] = (time.time(), value)
+    _cache[CACHE_VERSION + key] = (time.time(), value)
 
 # ─── APP ─────────────────────────────────────────────────────
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -690,6 +691,12 @@ def calculate_risk():
     return result
 
 # ─── ROUTES ──────────────────────────────────────────────────
+
+@app.route("/api/clear-cache")
+def clear_cache():
+    _cache.clear()
+    logger.info("Cache manually cleared")
+    return jsonify({"success": True, "message": "Cache cleared"})
 
 @app.route("/")
 def home():
