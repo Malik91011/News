@@ -294,79 +294,34 @@ def local_analyze(title):
             "why_this_matters": "Early signals often precede larger developments. Situational awareness is critical."
         }
 
-# ── TASKS ────────────────────────────────────────────────────
+# ── SINGLE ARTICLE ANALYSIS (avoids truncation) ─────────────
 
-def task_summarize_articles(headlines):
-    """GROQ → DeepSeek → Gemini → OpenRouter for bulk summarization."""
-    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
+def analyze_one(title):
+    """One compact API call per article — returns full intelligence dict."""
     prompt = (
-        "You are a senior intelligence analyst. For each item write a direct, declarative 1-sentence summary. "
-        "Use strong, active language. Never use: may, could, might, suggests, appears. "
-        "Use instead: confirms, signals, triggers, indicates, drives, forces, increases risk. "
-        "Max 20 words per summary. Return a JSON array. Each object: i (copy number), s (summary). "
-        "No markdown. Start with [\n\n" + json.dumps(items)
+        f"Headline: {title}\n\n"
+        "You are a senior intelligence analyst. Return a single JSON object (not array) with these exact keys:\n"
+        "s: 1-sentence factual summary (max 20 words, active voice)\n"
+        "importance: low|medium|high\n"
+        "impact: 1 sentence on direct consequences (max 15 words)\n"
+        "affected_countries: array of up to 3 country names\n"
+        "affected_industries: array of up to 3 sector names\n"
+        "next_triggers: 1 sentence on what to watch in 24-72h\n"
+        "confidence_score: low|medium|high\n"
+        "why_this_matters: max 10 words, specific\n"
+        "p: 1 actionable advisory sentence (max 18 words)\n"
+        "bias: neutral|slightly_left|slightly_right|unknown\n"
+        "No markdown. Return only the JSON object starting with {"
     )
-    for fn, name in [(call_groq, "GROQ"), (call_deepseek, "DeepSeek"), (call_gemini, "Gemini"), (call_openrouter, "OpenRouter")]:
+    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_openrouter, "OpenRouter")]:
         try:
-            raw = fn(prompt, temperature=0.2, max_tokens=800)
-            parsed = extract_json_array(raw)
-            idx_map = {obj.get("i", ix): obj.get("s", "") for ix, obj in enumerate(parsed)}
-            logger.info(f"Summarize via {name}")
-            return {i: idx_map.get(i, "") for i in range(len(headlines))}
+            raw = fn(prompt, temperature=0.2, max_tokens=400)
+            obj = extract_json_object(raw)
+            logger.info(f"analyze_one OK via {name}: {title[:40]}")
+            return obj
         except Exception as e:
-            logger.warning(f"{name} summarize failed: {e}")
-    return {}
-
-def task_assess_articles(headlines):
-    """GROQ → DeepSeek → Gemini → OpenRouter for full decision intelligence."""
-    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
-    prompt = (
-        "You are a senior geopolitical intelligence analyst. For each headline return a JSON array. "
-        "Use authoritative, declarative language. Never use: may, could, might, suggests, appears, seems. "
-        "Use instead: signals, confirms, indicates, drives, forces, triggers, increases, threatens. "
-        "Each object must have exactly these keys: "
-        "i (copy number), "
-        "importance (low|medium|high), "
-        "impact (1 direct sentence — active voice, max 15 words), "
-        "affected_countries (array of up to 3 country/region names), "
-        "affected_industries (array of up to 3 sector names), "
-        "next_triggers (1 sentence: specific indicators to watch in next 24-72h), "
-        "confidence_score (low|medium|high), "
-        "why_this_matters (max 10 words, punchy and specific), "
-        "bias (neutral|slightly_left|slightly_right|unknown). "
-        "No markdown. Return only the JSON array starting with [\n\n"
-        + json.dumps(items)
-    )
-    for fn, name in [(call_groq, "GROQ"), (call_deepseek, "DeepSeek"), (call_gemini, "Gemini"), (call_openrouter, "OpenRouter")]:
-        try:
-            raw = fn(prompt, temperature=0.2, max_tokens=1500)
-            parsed = extract_json_array(raw)
-            logger.info(f"Assessment via {name}")
-            return {obj.get("i", ix): obj for ix, obj in enumerate(parsed)}
-        except Exception as e:
-            logger.warning(f"{name} assess failed: {e}")
-    return {}
-
-def task_advisory_articles(headlines):
-    """GROQ → Gemini → DeepSeek → OpenRouter for per-article advisories."""
-    items = [{"i": i, "t": h["title"]} for i, h in enumerate(headlines)]
-    prompt = (
-        "You are an intelligence briefing officer. "
-        "For each headline write a direct, actionable 1-sentence advisory. "
-        "Be specific and decisive. Never hedge with: may, could, might, consider, perhaps. "
-        "Use: monitor, avoid, reassess, verify, track, act, prepare. Max 18 words. "
-        "Return a JSON array. Each object: i (copy number), p (1-sentence advisory). "
-        "No markdown. Start with [\n\n" + json.dumps(items)
-    )
-    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek"), (call_openrouter, "OpenRouter")]:
-        try:
-            raw = fn(prompt, temperature=0.3, max_tokens=800)
-            parsed = extract_json_array(raw)
-            logger.info(f"Advisory via {name}")
-            return {obj.get("i", ix): obj.get("p", "") for ix, obj in enumerate(parsed)}
-        except Exception as e:
-            logger.warning(f"{name} advisory failed: {e}")
-    return {}
+            logger.warning(f"{name} analyze_one failed: {e}")
+    return None
 
 def task_overall_summary(headlines):
     """GROQ → Gemini → DeepSeek → OpenRouter for status bar."""
@@ -434,34 +389,30 @@ def orchestrate(headlines, category):
 
     logger.info(f"Orchestrating {len(headlines)} articles for category: {category}")
 
-    summaries   = task_summarize_articles(headlines)
-    assessments = task_assess_articles(headlines)
-    advisories  = task_advisory_articles(headlines)
-
     results = []
     for i, h in enumerate(headlines):
         local = local_analyze(h["title"])
+        ai    = analyze_one(h["title"]) or {}
 
-        assessment_obj = assessments.get(i, {})
-        importance  = assessment_obj.get("importance", local["importance"])
-        impact      = assessment_obj.get("impact", local["assessment"])
-        bias        = assessment_obj.get("bias", "unknown")
-        assessment_text = impact
+        importance = ai.get("importance") or local["importance"]
+        impact     = ai.get("impact")     or local["impact"]
+        bias       = ai.get("bias", "unknown")
+        assessment = impact
         if bias not in ("unknown", "neutral", ""):
-            assessment_text += f" (Framing: {bias.replace('_', ' ')})"
+            assessment += f" (Framing: {bias.replace('_', ' ')})"
 
         article = {
             "title":              h["title"],
-            "summary":            summaries.get(i) or h["title"],
-            "assessment":         assessment_text or local["assessment"],
-            "precaution":         advisories.get(i) or local["advisory"],
+            "summary":            ai.get("s")                     or local["assessment"],
+            "assessment":         assessment                       or local["assessment"],
+            "precaution":         ai.get("p")                     or local["advisory"],
             "importance":         importance,
-            "impact":             assessment_obj.get("impact", local["impact"]),
-            "affected_countries": assessment_obj.get("affected_countries", local["affected_countries"]),
-            "affected_industries":assessment_obj.get("affected_industries", local["affected_industries"]),
-            "next_triggers":      assessment_obj.get("next_triggers", local["next_triggers"]),
-            "confidence_score":   assessment_obj.get("confidence_score", local["confidence_score"]),
-            "why_this_matters":   assessment_obj.get("why_this_matters", local["why_this_matters"]),
+            "impact":             impact                           or local["impact"],
+            "affected_countries": ai.get("affected_countries")    or local["affected_countries"],
+            "affected_industries":ai.get("affected_industries")   or local["affected_industries"],
+            "next_triggers":      ai.get("next_triggers")         or local["next_triggers"],
+            "confidence_score":   ai.get("confidence_score")      or local["confidence_score"],
+            "why_this_matters":   ai.get("why_this_matters")      or local["why_this_matters"],
             "severity_score":     score_headline(h["title"]),
             "source_count":       h.get("source_count", 1),
             "credibility":        h.get("credibility", "Low"),
@@ -471,6 +422,7 @@ def orchestrate(headlines, category):
             "time":               h["published"],
         }
         results.append(article)
+        time.sleep(0.3)  # Stay within free tier RPM limits
 
     cache_set(cache_key, results)
     logger.info(f"Orchestration complete for {category}, cached.")
@@ -741,10 +693,21 @@ def calculate_risk():
 
 @app.route("/")
 def home():
-    html_path = os.path.join(base_dir, "index.html")
-    with open(html_path, "r", encoding="utf-8") as f:
-        html = f.read()
-    return Response(html, mimetype="text/html")
+    for path in [
+        os.path.join(base_dir, "index.html"),                          # api/index.html
+        os.path.join(os.path.dirname(base_dir), "templates", "index.html"),  # templates/index.html
+        os.path.join(base_dir, "..", "templates", "index.html"),        # ../templates/index.html
+        "/var/task/templates/index.html",                               # Vercel absolute
+        "/var/task/api/index.html",
+    ]:
+        try:
+            path = os.path.abspath(path)
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    return Response(f.read(), mimetype="text/html")
+        except Exception:
+            continue
+    return Response(f"index.html not found. base_dir={base_dir}", status=500)
 
 @app.route("/api/news")
 def news():
