@@ -29,9 +29,10 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=base_dir, static_url_path='')
 
 # ─── API KEYS ────────────────────────────────────────────────
-GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
-GROQ_API_KEY     = os.environ.get("GROQ_API_KEY", "")
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+GEMINI_API_KEY     = os.environ.get("GEMINI_API_KEY", "")
+GOOGLE_AI_KEY      = os.environ.get("GOOGLE_AI_KEY", "")
+GROQ_API_KEY       = os.environ.get("GROQ_API_KEY", "")
+DEEPSEEK_API_KEY   = os.environ.get("DEEPSEEK_API_KEY", "")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # ═══════════════════════════════════════════════════════════════
@@ -67,6 +68,46 @@ def call_groq(prompt, temperature=0.3, max_tokens=1024):
             logger.warning(f"GROQ {model} failed: {e}")
             continue
     raise Exception(f"GROQ all models failed. Last: {last_err}")
+
+def call_google_ai(prompt, temperature=0.3, max_tokens=1024):
+    """Google AI Studio — Gemini 2.0 Flash via AI Studio key. Primary alongside GROQ."""
+    base = "https://generativelanguage.googleapis.com/v1beta/models"
+    models = [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash-lite",
+    ]
+    last_err = None
+    for model in models:
+        try:
+            resp = requests.post(
+                f"{base}/{model}:generateContent?key={GOOGLE_AI_KEY}",
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "maxOutputTokens": max_tokens
+                    }
+                },
+                timeout=20
+            )
+            if resp.status_code == 429:
+                logger.warning(f"Google AI {model} 429, trying next")
+                last_err = 429
+                continue
+            if resp.status_code in (400, 404):
+                logger.warning(f"Google AI {model} {resp.status_code}, trying next")
+                continue
+            resp.raise_for_status()
+            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            logger.info(f"Google AI success: {model}")
+            return text.strip()
+        except Exception as e:
+            last_err = e
+            logger.warning(f"Google AI {model} failed: {e}")
+            continue
+    raise Exception(f"Google AI all models failed. Last: {last_err}")
+
 
 def call_deepseek(prompt, temperature=0.3, max_tokens=1024):
     """DEEPSEEK — strong reasoning."""
@@ -298,23 +339,30 @@ def local_analyze(title):
 # ── SINGLE ARTICLE ANALYSIS (avoids truncation) ─────────────
 
 def analyze_one(title):
-    """One compact API call per article — returns full intelligence dict."""
+    """One compact API call per article — GROQ + Google AI do heavy work."""
     prompt = (
         f"Headline: {title}\n\n"
         "You are a senior intelligence analyst. Return a single JSON object (not array) with these exact keys:\n"
-        "s: 1-sentence factual summary (max 20 words, active voice)\n"
+        "s: 1-sentence factual summary (max 20 words, active voice, no hedging)\n"
         "importance: low|medium|high\n"
-        "impact: 1 sentence on direct consequences (max 15 words)\n"
+        "impact: 1 direct sentence on consequences (max 15 words)\n"
         "affected_countries: array of up to 3 country names\n"
         "affected_industries: array of up to 3 sector names\n"
-        "next_triggers: 1 sentence on what to watch in 24-72h\n"
+        "next_triggers: 1 sentence on what to monitor in 24-72h\n"
         "confidence_score: low|medium|high\n"
-        "why_this_matters: max 10 words, specific\n"
-        "p: 1 actionable advisory sentence (max 18 words)\n"
+        "why_this_matters: max 10 words, punchy and specific\n"
+        "p: 1 actionable advisory (max 18 words, use: monitor/avoid/track/verify/reassess)\n"
         "bias: neutral|slightly_left|slightly_right|unknown\n"
         "No markdown. Return only the JSON object starting with {"
     )
-    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_openrouter, "OpenRouter")]:
+    # GROQ and Google AI Studio are primary — fast, free, reliable
+    for fn, name in [
+        (call_groq,       "GROQ"),
+        (call_google_ai,  "Google AI"),
+        (call_openrouter, "OpenRouter"),
+        (call_gemini,     "Gemini"),
+        (call_deepseek,   "DeepSeek"),
+    ]:
         try:
             raw = fn(prompt, temperature=0.2, max_tokens=400)
             obj = extract_json_object(raw)
@@ -330,12 +378,12 @@ def task_overall_summary(headlines):
     if not titles:
         return "Intelligence feed synchronized."
     prompt = (
-        "You are a world news anchor. Based on these headlines, write ONE sharp factual "
+        "You are a world news anchor. Based on these headlines, write TWO sharp factual "
         "25-word sentence summarizing the most important global story right now. "
         "Be specific. No filler phrases. Return only the sentence, nothing else.\n\n"
         "Headlines:\n" + "\n".join(titles)
     )
-    for fn, name in [(call_groq, "GROQ"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek"), (call_openrouter, "OpenRouter")]:
+    for fn, name in [(call_groq, "GROQ"), (call_google_ai, "Google AI"), (call_openrouter, "OpenRouter"), (call_gemini, "Gemini"), (call_deepseek, "DeepSeek")]:
         try:
             text = fn(prompt, temperature=0.3, max_tokens=120)
             logger.info(f"Overall summary via {name}")
